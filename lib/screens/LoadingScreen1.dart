@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'LoginOrSigup.dart';
+import 'package:bus_tracker/screens/UserLogin.dart';
 
 class LoadingScreen1 extends StatefulWidget {
   const LoadingScreen1({super.key});
@@ -14,67 +14,76 @@ class LoadingScreen1State extends State<LoadingScreen1> {
     return Scaffold(
       body: SafeArea(
         child: Container(
-          constraints: const BoxConstraints.expand(),
-          color: const Color(0xFFFFFFFF),
+          width: double.infinity,
+          height: double.infinity,
+          color: const Color(0xBFEEEAEA),
           child: Column(
             children: [
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment(-1, -1),
-                      end: Alignment(-1, 1),
-                      colors: [
-                        Color(0xFFF2F2F6),
-                        Color(0xFFFFFFFF),
-                      ],
-                    ),
+              const Spacer(flex: 2),
+
+              //  APP TITLE
+              const Text(
+                "WAY2COLLEGE",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 40,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              //  CENTER IMAGE
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  height: 238,
+                  width: double.infinity,
+                  child: Image.asset(
+                    'assets/images/bus.png',
+                    fit: BoxFit.contain,
                   ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 140),
-                        const Text(
-                          "WAY2COLLEGE",
-                          style: TextStyle(fontSize: 40, color: Colors.black),
-                        ),
-                        const SizedBox(height: 90),
-                        Image.network(
-                          "https://storage.googleapis.com/tagjs-prod.appspot.com/v1/Y8FDqv2vvv/ifu8kzph_expires_30_days.png",
-                          height: 150,
-                        ),
-                        const SizedBox(height: 110),
+                ),
+              ),
 
-                        // GET STARTED BUTTON
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const LoginOrSigup()),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 74, vertical: 20),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(37),
-                              color: const Color(0xFF154C77),
-                            ),
-                            child: const Text(
-                              "GET STARTED",
-                              style:
-                                  TextStyle(color: Colors.white, fontSize: 20),
-                            ),
-                          ),
-                        ),
+              const Spacer(flex: 3),
 
-                        const SizedBox(height: 50),
-                      ],
+              //  GET STARTED BUTTON
+              GestureDetector(
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UserLogin()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 86,
+                    vertical: 28,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF095B41),
+                    borderRadius: BorderRadius.circular(37),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x40000000),
+                        blurRadius: 4,
+                        offset: Offset(5, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    "GET STARTED",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ),
+
+              const Spacer(flex: 2),
             ],
           ),
         ),
