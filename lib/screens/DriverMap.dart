@@ -1,11 +1,136 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/services/notification_service.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
-class DriverMap extends StatelessWidget {
+class DriverMap extends StatefulWidget {
   final String userId;
 
   const DriverMap({super.key, required this.userId});
+
+  @override
+  State<DriverMap> createState() => _DriverMapState();
+}
+
+class _DriverMapState extends State<DriverMap> {
+  String? _busId;
+  StreamSubscription<DocumentSnapshot>? _userSubscription;
+  StreamSubscription<Position>? _positionStream;
+  LatLng? _currentPosition;
+  final MapController _mapController = MapController();
+  String _loadingMessage = "Acquiring GPS location...";
+
+  @override
+  void initState() {
+    super.initState();
+    _initDriverLocation();
+  }
+
+  Future<void> _initDriverLocation() async {
+    // 1. Get User's Bus ID
+    _userSubscription = FirebaseFirestore.instance
+        .collection('Users')
+        .doc(widget.userId)
+        .snapshots()
+        .listen((snap) {
+          if (snap.exists) {
+            final data = snap.data() as Map<String, dynamic>;
+            if (mounted) {
+              setState(() {
+                _busId = data['AssignedBusId'];
+              });
+            }
+          }
+        });
+
+    // 2. Request Location Permission
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted)
+        setState(
+          () => _loadingMessage =
+              "Location services are disabled.\nPlease enable GPS.",
+        );
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted)
+          setState(() => _loadingMessage = "Location permissions are denied.");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted)
+        setState(
+          () =>
+              _loadingMessage = "Location permissions are permanently denied.",
+        );
+      return;
+    }
+
+    try {
+      Position initialPosition = await Geolocator.getCurrentPosition(
+        timeLimit: const Duration(seconds: 10),
+      );
+      if (mounted) {
+        setState(() {
+          _currentPosition = LatLng(
+            initialPosition.latitude,
+            initialPosition.longitude,
+          );
+        });
+      }
+    } catch (e) {
+      if (mounted)
+        setState(
+          () => _loadingMessage =
+              "Waiting for GPS signal...\n(If on emulator, set a mock location)",
+        );
+    }
+
+    // 3. Start Tracking Location
+    _positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5, // update every 5 meters
+          ),
+        ).listen((Position position) {
+          if (mounted) {
+            bool isFirst = _currentPosition == null;
+            setState(() {
+              _currentPosition = LatLng(position.latitude, position.longitude);
+            });
+            if (!isFirst) {
+              _mapController.move(_currentPosition!, 16.0); // Center map
+            }
+          }
+
+          // 4. Update Firestore
+          if (_busId != null) {
+            FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'lastLocationUpdate': FieldValue.serverTimestamp(),
+            });
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _userSubscription?.cancel();
+    _positionStream?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,13 +139,72 @@ class DriverMap extends StatelessWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            // MAP PLACEHOLDER
+            // ACTUAL MAP
             Positioned.fill(
-              child: Image.asset(
-                "assets/images/map_placeholder.png",
-                fit: BoxFit.cover,
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter:
+                      _currentPosition ??
+                      const LatLng(9.847694, 76.942194), // GEC Idukki
+                  initialZoom: 16.0,
+                  maxZoom: 18.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.bus_tracker',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      if (_currentPosition != null)
+                        Marker(
+                          point: _currentPosition!,
+                          width: 60,
+                          height: 60,
+                          child: const Icon(
+                            Icons.directions_bus,
+                            color: Colors.blue,
+                            size: 40,
+                          ),
+                        )
+                      else
+                        const Marker(
+                          point: LatLng(9.847694, 76.942194),
+                          width: 60,
+                          height: 60,
+                          child: Icon(
+                            Icons.school,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
+
+            // LOADING MESSAGE OVERLAY (Top center if loading)
+            if (_currentPosition == null)
+              Positioned(
+                top: 130,
+                left: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _loadingMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+              ),
 
             // TOP BAR
             Positioned(
@@ -69,7 +253,7 @@ class DriverMap extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Users')
-          .doc(userId)
+          .doc(widget.userId)
           .snapshots(),
       builder: (context, userSnap) {
         if (!userSnap.hasData) {
@@ -194,7 +378,7 @@ class DriverMap extends StatelessWidget {
   ) async {
     final userDoc = await FirebaseFirestore.instance
         .collection('Users')
-        .doc(userId)
+        .doc(widget.userId)
         .get();
 
     final busId = userDoc.data()?['AssignedBusId'];
@@ -209,7 +393,7 @@ class DriverMap extends StatelessWidget {
       'status': status,
       'delayMinutes': null,
       'delayReason': null,
-      'statusUpdatedBy': userId,
+      'statusUpdatedBy': widget.userId,
       'statusUpdatedAt': FieldValue.serverTimestamp(),
     });
 
@@ -289,7 +473,7 @@ class DriverMap extends StatelessWidget {
                     'status': "DELAYED",
                     'delayMinutes': int.parse(delayController.text),
                     'delayReason': reasonController.text.trim(),
-                    'statusUpdatedBy': userId,
+                    'statusUpdatedBy': widget.userId,
                     'statusUpdatedAt': FieldValue.serverTimestamp(),
                   });
 

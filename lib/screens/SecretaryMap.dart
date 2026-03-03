@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class SecretaryMap extends StatefulWidget {
   final String userId;
@@ -10,6 +13,77 @@ class SecretaryMap extends StatefulWidget {
 }
 
 class _SecretaryMapState extends State<SecretaryMap> {
+  StreamSubscription<QuerySnapshot>? _busesSubscription;
+  List<Marker> _busMarkers = [];
+  final MapController _mapController = MapController();
+  LatLng? _initialCenter;
+
+  @override
+  void initState() {
+    super.initState();
+    _initBusesListener();
+  }
+
+  void _initBusesListener() {
+    _busesSubscription = FirebaseFirestore.instance
+        .collection('Buses')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          List<Marker> newMarkers = [];
+          LatLng? firstLoc;
+
+          for (var bus in snap.docs) {
+            final data = bus.data() as Map<String, dynamic>;
+            if (data['latitude'] != null && data['longitude'] != null) {
+              final lat = (data['latitude'] as num).toDouble();
+              final lng = (data['longitude'] as num).toDouble();
+              final pt = LatLng(lat, lng);
+              if (firstLoc == null) firstLoc = pt;
+
+              Color markerColor = Colors.green;
+              if (data['status'] == 'DELAYED') markerColor = Colors.orange;
+              if (data['status'] == 'BREAKDOWN') markerColor = Colors.red;
+
+              newMarkers.add(
+                Marker(
+                  point: pt,
+                  width: 50,
+                  height: 50,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(Icons.location_on, color: markerColor, size: 50),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8.0),
+                        child: Icon(
+                          Icons.directions_bus,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          setState(() {
+            _busMarkers = newMarkers;
+            if (_initialCenter == null && firstLoc != null) {
+              _initialCenter = firstLoc;
+            }
+          });
+        });
+  }
+
+  @override
+  void dispose() {
+    _busesSubscription?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -17,11 +91,41 @@ class _SecretaryMapState extends State<SecretaryMap> {
       body: SafeArea(
         child: Stack(
           children: [
-            // MAP PLACEHOLDER
+            // ACTUAL MAP
             Positioned.fill(
-              child: Image.asset(
-                "assets/images/map_placeholder.png",
-                fit: BoxFit.cover,
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter:
+                      _initialCenter ??
+                      const LatLng(9.847694, 76.942194), // GEC Idukki
+                  initialZoom: 13.0,
+                  maxZoom: 18.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.bus_tracker',
+                  ),
+                  if (_initialCenter == null)
+                    const MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(9.847694, 76.942194),
+                          width: 60,
+                          height: 60,
+                          child: Icon(
+                            Icons.school,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    MarkerLayer(markers: _busMarkers),
+                ],
               ),
             ),
 
@@ -48,7 +152,7 @@ class _SecretaryMapState extends State<SecretaryMap> {
               ),
             ),
 
-            // BUS CARDS
+            // BUS CARDS OVERLAY (Using Opacity to show map behind it)
             Positioned(
               top: 90,
               left: 16,
@@ -132,109 +236,125 @@ class _SecretaryMapState extends State<SecretaryMap> {
             statusColor = Colors.green;
         }
 
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 6,
-                  offset: Offset(2, 4),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // 🔹 FULL HEIGHT COLOR STRIP (Perfect Curve)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(width: 6, color: statusColor),
-                ),
-
-                // 🔹 CONTENT
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
+        return GestureDetector(
+          onTap: () {
+            if (data['latitude'] != null && data['longitude'] != null) {
+              final pt = LatLng(
+                (data['latitude'] as num).toDouble(),
+                (data['longitude'] as num).toDouble(),
+              );
+              _mapController.move(
+                pt,
+                16.0,
+              ); // Focus on this bus when card clicked
+            }
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(
+                  0.92,
+                ), // Slight transparency to show map
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 6,
+                    offset: Offset(2, 4),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.directions_bus,
-                            size: 20,
-                            color: Colors.black87,
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              busName,
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // 🔹 FULL HEIGHT COLOR STRIP
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(width: 6, color: statusColor),
+                  ),
+
+                  // 🔹 CONTENT
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.directions_bus,
+                              size: 20,
+                              color: Colors.black87,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                busName,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: statusColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _statusLabel(status),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                              color: statusColor,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      if (status == "DELAYED" && delayMinutes != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            "$delayMinutes min late${delayReason != null ? " • $delayReason" : ""}",
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 13),
-                          ),
+                          ],
                         ),
 
-                      if (status == "BREAKDOWN")
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
-                          child: Text(
-                            "Please wait for updates",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 13),
-                          ),
+                        const SizedBox(height: 12),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: statusColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _statusLabel(status),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: statusColor,
+                              ),
+                            ),
+                          ],
                         ),
-                    ],
+
+                        if (status == "DELAYED" && delayMinutes != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              "$delayMinutes min late${delayReason != null ? " • $delayReason" : ""}",
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+
+                        if (status == "BREAKDOWN")
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text(
+                              "Please wait for updates",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
