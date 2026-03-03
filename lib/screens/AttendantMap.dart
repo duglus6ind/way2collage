@@ -1,11 +1,87 @@
+import 'dart:async';
 import 'package:bus_tracker/screens/SeatLayout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/services/notification_service.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
-class AttendantMap extends StatelessWidget {
+class AttendantMap extends StatefulWidget {
   final String userId;
 
   const AttendantMap({super.key, required this.userId});
+
+  @override
+  State<AttendantMap> createState() => _AttendantMapState();
+}
+
+class _AttendantMapState extends State<AttendantMap> {
+  String? _busId;
+  StreamSubscription<DocumentSnapshot>? _userSubscription;
+  StreamSubscription<DocumentSnapshot>? _busSubscription;
+  LatLng? _currentPosition;
+  final MapController _mapController = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    _initMapListener();
+  }
+
+  void _initMapListener() {
+    _userSubscription = FirebaseFirestore.instance
+        .collection('Users')
+        .doc(widget.userId)
+        .snapshots()
+        .listen((userSnap) {
+          if (userSnap.exists) {
+            final data = userSnap.data() as Map<String, dynamic>;
+            final newBusId = data['AssignedBusId'];
+            if (newBusId != _busId) {
+              if (mounted) {
+                setState(() {
+                  _busId = newBusId;
+                });
+              }
+              _busSubscription?.cancel();
+              if (_busId != null) {
+                _busSubscription = FirebaseFirestore.instance
+                    .collection('Buses')
+                    .doc(_busId)
+                    .snapshots()
+                    .listen((busSnap) {
+                      if (busSnap.exists) {
+                        final busData = busSnap.data() as Map<String, dynamic>;
+                        if (busData['latitude'] != null &&
+                            busData['longitude'] != null) {
+                          final newLat = (busData['latitude'] as num)
+                              .toDouble();
+                          final newLng = (busData['longitude'] as num)
+                              .toDouble();
+                          if (mounted) {
+                            bool isFirst = _currentPosition == null;
+                            setState(() {
+                              _currentPosition = LatLng(newLat, newLng);
+                            });
+                            if (!isFirst) {
+                              _mapController.move(_currentPosition!, 16.0);
+                            }
+                          }
+                        }
+                      }
+                    });
+              }
+            }
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _userSubscription?.cancel();
+    _busSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,11 +90,50 @@ class AttendantMap extends StatelessWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            // MAP PLACEHOLDER
+            // ACTUAL MAP
             Positioned.fill(
-              child: Image.asset(
-                "assets/images/map_placeholder.png",
-                fit: BoxFit.cover,
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter:
+                      _currentPosition ??
+                      const LatLng(9.847694, 76.942194), // GEC Idukki
+                  initialZoom: 16.0,
+                  maxZoom: 18.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.bus_tracker',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      if (_currentPosition != null)
+                        Marker(
+                          point: _currentPosition!,
+                          width: 60,
+                          height: 60,
+                          child: const Icon(
+                            Icons.directions_bus,
+                            color: Colors.blue,
+                            size: 40,
+                          ),
+                        )
+                      else
+                        const Marker(
+                          point: LatLng(9.847694, 76.942194),
+                          width: 60,
+                          height: 60,
+                          child: Icon(
+                            Icons.school,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
 
@@ -53,30 +168,12 @@ class AttendantMap extends StatelessWidget {
               child: Center(
                 child: GestureDetector(
                   onTap: () => _showStatusPicker(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: _busStatusText(),
-                  ),
+                  child: _busStatusText(),
                 ),
               ),
             ),
 
-            // TRACK SEATS BUTTON (UNCHANGED)
-            // TRACK SEATS BUTTON (FUNCTIONAL)
+            // TRACK SEATS BUTTON
             Positioned(
               bottom: 24,
               right: 24,
@@ -123,15 +220,15 @@ class AttendantMap extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Users')
-          .doc(userId)
+          .doc(widget.userId)
           .snapshots(),
       builder: (context, userSnap) {
         if (!userSnap.hasData) {
           return const Text("Loading...");
         }
 
-        final userData = userSnap.data!.data() as Map<String, dynamic>;
-        final busId = userData['AssignedBusId'];
+        final userData = userSnap.data!.data() as Map<String, dynamic>?;
+        final busId = userData?['AssignedBusId'];
 
         if (busId == null) {
           return const Text(
@@ -152,13 +249,47 @@ class AttendantMap extends StatelessWidget {
 
             final busData = busSnap.data!.data() as Map<String, dynamic>;
             final status = busData['status'] ?? "ON_THE_WAY";
+            final delayMinutes = busData['delayMinutes'];
 
-            return Text(
-              _statusLabel(status),
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.deepOrange,
+            final color = _getStatusColor(status);
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: color, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    status == "DELAYED" && delayMinutes != null
+                        ? "Delayed • $delayMinutes min"
+                        : _statusLabel(status),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: color,
+                    ),
+                  ),
+                ],
               ),
             );
           },
@@ -206,7 +337,7 @@ class AttendantMap extends StatelessWidget {
   ) async {
     final userDoc = await FirebaseFirestore.instance
         .collection('Users')
-        .doc(userId)
+        .doc(widget.userId)
         .get();
 
     final busId = userDoc.data()?['AssignedBusId'];
@@ -221,9 +352,32 @@ class AttendantMap extends StatelessWidget {
       'status': status,
       'delayMinutes': null,
       'delayReason': null,
-      'statusUpdatedBy': userId,
+      'statusUpdatedBy': widget.userId,
       'statusUpdatedAt': FieldValue.serverTimestamp(),
     });
+
+    // 🔔 Notify all students assigned to this bus
+    final students = await FirebaseFirestore.instance
+        .collection('Users')
+        .where('AssignedBusId', isEqualTo: busId)
+        .where('Role', isEqualTo: 'Student')
+        .get();
+    final busDoc = await FirebaseFirestore.instance
+        .collection('Buses')
+        .doc(busId)
+        .get();
+
+    final busName = busDoc.data()?['busName'] ?? "Your Bus";
+
+    for (var doc in students.docs) {
+      await NotificationService.sendNotification(
+        toUserId: doc.id,
+        title: "$busName Status Updated",
+        message: "Status changed to ${_statusLabel(status)}",
+        busId: busId,
+        busName: busName,
+      );
+    }
   }
 
   // ---------------- DELAY POPUP ----------------
@@ -278,9 +432,33 @@ class AttendantMap extends StatelessWidget {
                     'status': "DELAYED",
                     'delayMinutes': int.parse(delayController.text),
                     'delayReason': reasonController.text.trim(),
-                    'statusUpdatedBy': userId,
+                    'statusUpdatedBy': widget.userId,
                     'statusUpdatedAt': FieldValue.serverTimestamp(),
                   });
+
+              // 🔔 Notify students about delay
+              final students = await FirebaseFirestore.instance
+                  .collection('Users')
+                  .where('AssignedBusId', isEqualTo: busId)
+                  .where('Role', isEqualTo: 'Student')
+                  .get();
+              final busDoc = await FirebaseFirestore.instance
+                  .collection('Buses')
+                  .doc(busId)
+                  .get();
+
+              final busName = busDoc.data()?['busName'] ?? "Your Bus";
+
+              for (var doc in students.docs) {
+                await NotificationService.sendNotification(
+                  toUserId: doc.id,
+                  title: "$busName Delayed",
+                  message:
+                      "Delayed by ${delayController.text} min • ${reasonController.text}",
+                  busId: busId,
+                  busName: busName,
+                );
+              }
 
               Navigator.pop(context);
             },
@@ -320,10 +498,21 @@ class AttendantMap extends StatelessWidget {
     );
   }
 
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case "DELAYED":
+        return Colors.orange;
+      case "BREAKDOWN":
+        return Colors.red;
+      default:
+        return Colors.green;
+    }
+  }
+
   Future<void> _openSeatLayout(BuildContext context) async {
     final userDoc = await FirebaseFirestore.instance
         .collection('Users')
-        .doc(userId)
+        .doc(widget.userId)
         .get();
 
     final busId = userDoc.data()?['AssignedBusId'];

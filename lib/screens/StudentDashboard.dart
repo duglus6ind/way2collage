@@ -3,7 +3,9 @@ import 'package:bus_tracker/screens/StudentLostItems.dart';
 import 'package:bus_tracker/screens/StudentMap.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
+import 'package:bus_tracker/screens/StudentNotifications.dart';
 
 class StudentDashboard extends StatelessWidget {
   final String userId;
@@ -25,7 +27,65 @@ class StudentDashboard extends StatelessWidget {
                   _topChip("Way2College"),
                   Row(
                     children: [
-                      _iconBox(Icons.notifications_none),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('Notifications')
+                            .where('toUserId', isEqualTo: userId)
+                            .where('isRead', isEqualTo: false)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          int unreadCount = snapshot.hasData
+                              ? snapshot.data!.docs.length
+                              : 0;
+
+                          return Stack(
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => StudentNotificationsPage(
+                                        userId: userId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: _iconBox(Icons.notifications_none),
+                              ),
+
+                              if (unreadCount > 0)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
+                                    child: Text(
+                                      unreadCount > 9
+                                          ? "9+"
+                                          : unreadCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+
                       const SizedBox(width: 12),
                       PopupMenuButton<String>(
                         onSelected: (value) {
@@ -255,7 +315,11 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  void _logout(BuildContext context) {
+  void _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const UserLogin()),

@@ -5,6 +5,7 @@ import 'package:bus_tracker/screens/SecretaryMap.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/screens/UserManagement.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BusSecretaryDashboard extends StatelessWidget {
   final String userId;
@@ -346,7 +347,11 @@ class BusSecretaryDashboard extends StatelessWidget {
   }
 
   // LOGOUT HANDLERS (UNCHANGED LOGIC)
-  void _logout(BuildContext context) {
+  void _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const UserLogin()),

@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
+import 'package:bus_tracker/screens/BusSecretaryDashboard.dart';
+import 'package:bus_tracker/screens/DriverDashboard.dart';
+import 'package:bus_tracker/screens/StudentDashboard.dart';
+import 'package:bus_tracker/screens/BusAttendantDashboard.dart';
+import 'package:bus_tracker/services/notification_service.dart';
 
 class LoadingScreen1 extends StatefulWidget {
   const LoadingScreen1({super.key});
@@ -9,6 +15,58 @@ class LoadingScreen1 extends StatefulWidget {
 }
 
 class LoadingScreen1State extends State<LoadingScreen1> {
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    final role = prefs.getString('role');
+
+    if (userId != null && role != null) {
+      if (!mounted) return;
+
+      // START NOTIFICATION LISTENER FOR AUTO LOGGED IN USER
+      NotificationService.startListening(userId);
+
+      switch (role) {
+        case 'Bus Secretary':
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BusSecretaryDashboard(userId: userId),
+            ),
+          );
+          break;
+        case 'Driver':
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => DriverDashboard(userId: userId)),
+          );
+          break;
+        case 'Student':
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => StudentDashboard(userId: userId)),
+          );
+          break;
+        case 'Bus Attendant':
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BusAttendantDashboard(userId: userId),
+            ),
+          );
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

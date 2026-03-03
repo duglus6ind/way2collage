@@ -14,24 +14,40 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFEEEAEA),
+
+      // ================= APP BAR =================
       appBar: AppBar(
-        title: const Text("Assign Bus", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF095C42),
-        elevation: 0,
+        elevation: 4,
+        shadowColor: Colors.black26,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          color: Colors.white,
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          "Assign Bus & Routes",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 17,
+            letterSpacing: 0.4,
+          ),
+        ),
       ),
+
       body: Column(
         children: [
           Expanded(child: _buildBusList()),
 
-          // Bottom action panel
+          // Bottom Action Panel
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.all(18),
+            decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
-              boxShadow: const [
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
                 BoxShadow(
                   color: Colors.black26,
                   blurRadius: 6,
@@ -58,7 +74,8 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
     );
   }
 
-  // BUS LIST UI
+  // ================= BUS LIST =================
+
   Widget _buildBusList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('Buses').snapshots(),
@@ -85,32 +102,45 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
             final bus = buses[index];
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 4,
-                    offset: Offset(0, 3),
+                    color: Colors.black12,
+                    blurRadius: 5,
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    bus['busName'],
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.directions_bus,
+                        color: Color(0xFF095C42),
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          bus['busName'],
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
 
-                  // ROUTE DROPDOWN
+                  const SizedBox(height: 14),
+
+                  // Route Dropdown
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('Routes')
@@ -124,7 +154,11 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
                         value: bus['routeId'],
                         decoration: const InputDecoration(
                           labelText: "Assigned Route",
-                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(14)),
+                          ),
                         ),
                         items: routeSnap.data!.docs.map((doc) {
                           return DropdownMenuItem<String>(
@@ -163,7 +197,8 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
     );
   }
 
-  // BUTTON STYLES
+  // ================= BUTTON STYLES =================
+
   Widget _primaryButton({required String text, required VoidCallback onTap}) {
     return SizedBox(
       width: double.infinity,
@@ -171,7 +206,6 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF095C42),
-          foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
@@ -179,7 +213,11 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
         onPressed: onTap,
         child: Text(
           text,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -209,15 +247,15 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
     );
   }
 
-  // DELETE CONFIRMATION
+  // ================= DELETE BUS =================
+
   void _confirmDeleteBus(BuildContext context, String busId) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Delete Bus"),
         content: const Text(
-          "This bus will be removed and unassigned from all users.\n\n"
-          "Are you sure?",
+          "This bus will be removed and unassigned from all users.\n\nAre you sure?",
         ),
         actions: [
           TextButton(
@@ -249,8 +287,8 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
     await FirebaseFirestore.instance.collection('Buses').doc(busId).delete();
   }
 }
+// ================= DIALOG OPENERS =================
 
-// DIALOG OPENERS
 void _showAddBusDialog(BuildContext context) {
   showDialog(context: context, builder: (_) => const _AddBusDialog());
 }
@@ -258,6 +296,7 @@ void _showAddBusDialog(BuildContext context) {
 void _showAddRouteDialog(BuildContext context) {
   showDialog(context: context, builder: (_) => const _AddRouteDialog());
 }
+// ================= ADD BUS DIALOG =================
 
 class _AddBusDialog extends StatefulWidget {
   const _AddBusDialog();
@@ -269,11 +308,16 @@ class _AddBusDialog extends StatefulWidget {
 class _AddBusDialogState extends State<_AddBusDialog> {
   final TextEditingController busNameController = TextEditingController();
   String? selectedRouteId;
+  bool isSaving = false;
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text("Add Bus"),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        "Add New Bus",
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -285,6 +329,7 @@ class _AddBusDialogState extends State<_AddBusDialog> {
             ),
           ),
           const SizedBox(height: 16),
+
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('Routes').snapshots(),
             builder: (context, snapshot) {
@@ -301,7 +346,7 @@ class _AddBusDialogState extends State<_AddBusDialog> {
                 items: snapshot.data!.docs.map((doc) {
                   return DropdownMenuItem<String>(
                     value: doc.id,
-                    child: Text(doc['Name'].toString()),
+                    child: Text(doc['Name']),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -317,22 +362,32 @@ class _AddBusDialogState extends State<_AddBusDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text("CANCEL"),
+          child: const Text("Cancel"),
         ),
-        ElevatedButton(onPressed: _saveBus, child: const Text("ADD")),
+        ElevatedButton(
+          onPressed: isSaving ? null : _saveBus,
+          child: const Text("Add"),
+        ),
       ],
     );
   }
 
   Future<void> _saveBus() async {
     final busName = busNameController.text.trim();
-    if (busName.isEmpty || selectedRouteId == null) return;
+    if (busName.isEmpty || selectedRouteId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Fill all fields")));
+      return;
+    }
+
+    setState(() => isSaving = true);
 
     final busId = normalizeId(busName);
-
     final docRef = FirebaseFirestore.instance.collection('Buses').doc(busId);
 
     if ((await docRef.get()).exists) {
+      setState(() => isSaving = false);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Bus already exists")));
@@ -344,6 +399,7 @@ class _AddBusDialogState extends State<_AddBusDialog> {
     Navigator.pop(context);
   }
 }
+// ================= ADD ROUTE DIALOG =================
 
 class _AddRouteDialog extends StatefulWidget {
   const _AddRouteDialog();
@@ -354,59 +410,161 @@ class _AddRouteDialog extends StatefulWidget {
 
 class _AddRouteDialogState extends State<_AddRouteDialog> {
   final TextEditingController routeController = TextEditingController();
+  final List<TextEditingController> stopControllers = [TextEditingController()];
+
   bool isSaving = false;
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text("Manage Routes"),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        "Manage Routes",
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
       content: SizedBox(
         width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: routeController,
-              decoration: const InputDecoration(
-                labelText: "New Route Name",
-                border: OutlineInputBorder(),
+        height: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: routeController,
+                decoration: const InputDecoration(
+                  labelText: "Route Name",
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isSaving ? null : _addRoute,
-                child: const Text("ADD ROUTE"),
+              const SizedBox(height: 20),
+
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Stops (Include Destination)",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
 
-            const SizedBox(height: 20),
-            const Divider(),
-            const SizedBox(height: 10),
+              const SizedBox(height: 10),
 
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Existing Routes",
-                style: TextStyle(fontWeight: FontWeight.w600),
+              ..._buildStopFields(),
+
+              const SizedBox(height: 12),
+
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text("Add Another Stop"),
+                onPressed: () {
+                  setState(() {
+                    stopControllers.add(TextEditingController());
+                  });
+                },
               ),
-            ),
 
-            const SizedBox(height: 10),
+              const SizedBox(height: 20),
 
-            Expanded(child: _buildRouteList()),
-          ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isSaving ? null : _addRoute,
+                  child: const Text("Save Route"),
+                ),
+              ),
+
+              const SizedBox(height: 25),
+              const Divider(),
+              const SizedBox(height: 10),
+
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Existing Routes",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(height: 150, child: _buildRouteList()),
+            ],
+          ),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text("CLOSE"),
+          child: const Text("Close"),
         ),
       ],
     );
+  }
+
+  List<Widget> _buildStopFields() {
+    return List.generate(stopControllers.length, (index) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: stopControllers[index],
+                decoration: InputDecoration(
+                  labelText: "Stop ${index + 1}",
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ),
+            if (stopControllers.length > 1)
+              IconButton(
+                icon: const Icon(Icons.remove_circle, color: Colors.red),
+                onPressed: () {
+                  setState(() {
+                    stopControllers.removeAt(index);
+                  });
+                },
+              ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Future<void> _addRoute() async {
+    final routeName = routeController.text.trim();
+    if (routeName.isEmpty) return;
+
+    List<Map<String, dynamic>> stops = [];
+
+    for (int i = 0; i < stopControllers.length; i++) {
+      final stopName = stopControllers[i].text.trim();
+      if (stopName.isNotEmpty) {
+        stops.add({'name': stopName, 'order': i + 1});
+      }
+    }
+
+    if (stops.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Add at least one stop")));
+      return;
+    }
+
+    final routeId = normalizeId(routeName);
+    final docRef = FirebaseFirestore.instance.collection('Routes').doc(routeId);
+
+    if ((await docRef.get()).exists) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Route already exists")));
+      return;
+    }
+
+    await docRef.set({'Name': routeName, 'Stops': stops});
+
+    routeController.clear();
+    stopControllers.clear();
+    stopControllers.add(TextEditingController());
   }
 
   Widget _buildRouteList() {
@@ -443,26 +601,6 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
     );
   }
 
-  Future<void> _addRoute() async {
-    final routeName = routeController.text.trim();
-    if (routeName.isEmpty) return;
-
-    final routeId = normalizeId(routeName);
-
-    final docRef = FirebaseFirestore.instance.collection('Routes').doc(routeId);
-
-    if ((await docRef.get()).exists) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Route already exists")));
-      return;
-    }
-
-    await docRef.set({'Name': routeName});
-
-    routeController.clear();
-  }
-
   Future<void> _confirmDeleteRoute(
     BuildContext context,
     String routeId,
@@ -489,8 +627,7 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
       builder: (_) => AlertDialog(
         title: const Text("Delete Route"),
         content: Text(
-          "Are you sure you want to delete \"$routeName\"?\n\n"
-          "This action cannot be undone.",
+          "Are you sure you want to delete \"$routeName\"?\n\nThis action cannot be undone.",
         ),
         actions: [
           TextButton(
@@ -500,15 +637,10 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-
               await FirebaseFirestore.instance
                   .collection('Routes')
                   .doc(routeId)
                   .delete();
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Route deleted successfully")),
-              );
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),

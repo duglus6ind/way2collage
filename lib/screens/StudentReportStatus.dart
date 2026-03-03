@@ -85,6 +85,8 @@ class StudentReportStatusPage extends StatelessWidget {
             final data = doc.data() as Map<String, dynamic>;
 
             return _reportCard(
+              context: context,
+              docId: doc.id,
               itemName: data['itemName'] ?? '',
               description: data['description'] ?? '',
               status: data['status'] ?? 'OPEN',
@@ -99,6 +101,8 @@ class StudentReportStatusPage extends StatelessWidget {
   // ================= REPORT CARD =================
 
   Widget _reportCard({
+    required BuildContext context,
+    required String docId,
     required String itemName,
     required String description,
     required String status,
@@ -142,9 +146,53 @@ class StudentReportStatusPage extends StatelessWidget {
             const SizedBox(height: 4),
             Text(reply),
           ],
+
+          if (status == 'CLOSED') ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _confirmReceipt(context, docId),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  "Confirm Receipt",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  // ================= CONFIRM RECEIPT LOGIC =================
+
+  Future<void> _confirmReceipt(BuildContext context, String docId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('student_lost_reports')
+          .doc(docId)
+          .update({
+            'status': 'CONFIRMED',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Thank you for confirming!")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
   }
 
   // ================= HELPERS =================
@@ -172,6 +220,9 @@ class StudentReportStatusPage extends StatelessWidget {
         break;
       case 'CLOSED':
         color = Colors.red;
+        break;
+      case 'CONFIRMED':
+        color = Colors.deepPurple;
         break;
       default:
         color = Colors.orange;

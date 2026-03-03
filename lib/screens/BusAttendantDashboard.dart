@@ -4,6 +4,7 @@ import 'package:bus_tracker/screens/ProfilePage.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BusAttendantDashboard extends StatelessWidget {
   final String userId;
@@ -115,7 +116,11 @@ class BusAttendantDashboard extends StatelessWidget {
     );
   }
 
-  void _logout(BuildContext context) {
+  void _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const UserLogin()),

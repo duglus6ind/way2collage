@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class SecretaryMap extends StatefulWidget {
   final String userId;
@@ -10,7 +13,76 @@ class SecretaryMap extends StatefulWidget {
 }
 
 class _SecretaryMapState extends State<SecretaryMap> {
-  String? selectedBusId;
+  StreamSubscription<QuerySnapshot>? _busesSubscription;
+  List<Marker> _busMarkers = [];
+  final MapController _mapController = MapController();
+  LatLng? _initialCenter;
+
+  @override
+  void initState() {
+    super.initState();
+    _initBusesListener();
+  }
+
+  void _initBusesListener() {
+    _busesSubscription = FirebaseFirestore.instance
+        .collection('Buses')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          List<Marker> newMarkers = [];
+          LatLng? firstLoc;
+
+          for (var bus in snap.docs) {
+            final data = bus.data() as Map<String, dynamic>;
+            if (data['latitude'] != null && data['longitude'] != null) {
+              final lat = (data['latitude'] as num).toDouble();
+              final lng = (data['longitude'] as num).toDouble();
+              final pt = LatLng(lat, lng);
+              if (firstLoc == null) firstLoc = pt;
+
+              Color markerColor = Colors.green;
+              if (data['status'] == 'DELAYED') markerColor = Colors.orange;
+              if (data['status'] == 'BREAKDOWN') markerColor = Colors.red;
+
+              newMarkers.add(
+                Marker(
+                  point: pt,
+                  width: 50,
+                  height: 50,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(Icons.location_on, color: markerColor, size: 50),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8.0),
+                        child: Icon(
+                          Icons.directions_bus,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          setState(() {
+            _busMarkers = newMarkers;
+            if (_initialCenter == null && firstLoc != null) {
+              _initialCenter = firstLoc;
+            }
+          });
+        });
+  }
+
+  @override
+  void dispose() {
+    _busesSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,11 +91,41 @@ class _SecretaryMapState extends State<SecretaryMap> {
       body: SafeArea(
         child: Stack(
           children: [
-            // MAP PLACEHOLDER
+            // ACTUAL MAP
             Positioned.fill(
-              child: Image.asset(
-                "assets/images/map_placeholder.png",
-                fit: BoxFit.cover,
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter:
+                      _initialCenter ??
+                      const LatLng(9.847694, 76.942194), // GEC Idukki
+                  initialZoom: 13.0,
+                  maxZoom: 18.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.bus_tracker',
+                  ),
+                  if (_initialCenter == null)
+                    const MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(9.847694, 76.942194),
+                          width: 60,
+                          height: 60,
+                          child: Icon(
+                            Icons.school,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    MarkerLayer(markers: _busMarkers),
+                ],
               ),
             ),
 
@@ -50,18 +152,13 @@ class _SecretaryMapState extends State<SecretaryMap> {
               ),
             ),
 
-            // BUS SELECTOR + STATUS
+            // BUS CARDS OVERLAY (Using Opacity to show map behind it)
             Positioned(
               top: 90,
               left: 16,
               right: 16,
-              child: Column(
-                children: [
-                  _busDropdown(),
-                  const SizedBox(height: 12),
-                  if (selectedBusId != null) _busStatusCard(selectedBusId!),
-                ],
-              ),
+              bottom: 16,
+              child: _allBusCards(),
             ),
           ],
         ),
@@ -69,57 +166,47 @@ class _SecretaryMapState extends State<SecretaryMap> {
     );
   }
 
-  // ================= BUS DROPDOWN =================
+  // ================= ALL BUS CARDS =================
 
-  Widget _busDropdown() {
+  Widget _allBusCards() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('Buses').snapshots(),
       builder: (context, snap) {
-        if (!snap.hasData || snap.data!.docs.isEmpty) {
-          return _statusContainer(
-            title: "No buses available",
-            subtitle: "",
-            color: Colors.grey.shade300,
-          );
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
         }
 
         final buses = snap.data!.docs;
 
-        // Auto select first bus
-        selectedBusId ??= buses.first.id;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              isExpanded: true,
-              value: selectedBusId,
-              items: buses.map((bus) {
-                return DropdownMenuItem<String>(
-                  value: bus.id,
-                  child: Text(bus['busName']),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedBusId = value;
-                });
-              },
+        if (buses.isEmpty) {
+          return const Center(
+            child: Text(
+              "No buses available",
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
+          );
+        }
+
+        return GridView.builder(
+          itemCount: buses.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2, // side by side
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.2,
           ),
+          itemBuilder: (context, index) {
+            final bus = buses[index];
+            return _busCard(bus.id);
+          },
         );
       },
     );
   }
 
-  // ================= BUS STATUS =================
+  // ================= SINGLE BUS CARD =================
 
-  Widget _busStatusCard(String busId) {
+  Widget _busCard(String busId) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Buses')
@@ -127,86 +214,163 @@ class _SecretaryMapState extends State<SecretaryMap> {
           .snapshots(),
       builder: (context, snap) {
         if (!snap.hasData || !snap.data!.exists) {
-          return _statusContainer(
-            title: "Bus not found",
-            subtitle: "",
-            color: Colors.grey.shade300,
-          );
+          return const SizedBox();
         }
 
         final data = snap.data!.data() as Map<String, dynamic>;
+        final busName = data['busName'] ?? "Unknown Bus";
         final status = data['status'] ?? "ON_THE_WAY";
         final delayMinutes = data['delayMinutes'];
         final delayReason = data['delayReason'];
 
+        Color statusColor;
+
         switch (status) {
           case "DELAYED":
-            return _statusContainer(
-              title:
-                  "Bus Delayed${delayReason != null ? " • $delayReason" : ""}",
-              subtitle: delayMinutes != null
-                  ? "$delayMinutes minutes late"
-                  : "",
-              color: Colors.orange.shade100,
-              titleColor: Colors.red,
-            );
-
+            statusColor = Colors.orange;
+            break;
           case "BREAKDOWN":
-            return _statusContainer(
-              title: "Bus Breakdown",
-              subtitle: "Please wait for updates",
-              color: Colors.red.shade100,
-              titleColor: Colors.red,
-            );
-
+            statusColor = Colors.red;
+            break;
           default:
-            return _statusContainer(
-              title: "Bus On the Way",
-              subtitle: "Arriving as scheduled",
-              color: Colors.green.shade100,
-              titleColor: Colors.green.shade800,
-            );
+            statusColor = Colors.green;
         }
+
+        return GestureDetector(
+          onTap: () {
+            if (data['latitude'] != null && data['longitude'] != null) {
+              final pt = LatLng(
+                (data['latitude'] as num).toDouble(),
+                (data['longitude'] as num).toDouble(),
+              );
+              _mapController.move(
+                pt,
+                16.0,
+              ); // Focus on this bus when card clicked
+            }
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(
+                  0.92,
+                ), // Slight transparency to show map
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 6,
+                    offset: Offset(2, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // 🔹 FULL HEIGHT COLOR STRIP
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(width: 6, color: statusColor),
+                  ),
+
+                  // 🔹 CONTENT
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.directions_bus,
+                              size: 20,
+                              color: Colors.black87,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                busName,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: statusColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _statusLabel(status),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: statusColor,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (status == "DELAYED" && delayMinutes != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              "$delayMinutes min late${delayReason != null ? " • $delayReason" : ""}",
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+
+                        if (status == "BREAKDOWN")
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text(
+                              "Please wait for updates",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       },
     );
   }
 
-  // ================= UI HELPERS =================
-
-  Widget _statusContainer({
-    required String title,
-    required String subtitle,
-    required Color color,
-    Color titleColor = Colors.black,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: titleColor,
-            ),
-          ),
-          if (subtitle.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ],
-      ),
-    );
+  String _statusLabel(String status) {
+    switch (status) {
+      case "DELAYED":
+        return "Delayed";
+      case "BREAKDOWN":
+        return "Breakdown";
+      default:
+        return "On the Way";
+    }
   }
 
   Widget _iconButton({required IconData icon, VoidCallback? onTap}) {

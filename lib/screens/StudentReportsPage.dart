@@ -79,7 +79,7 @@ class StudentReportsPage extends StatelessWidget {
 
   Widget _reportCard(
     BuildContext context,
-    String reportId, // ✅ THIS IS THE DOC ID
+    String reportId, //  THIS IS THE DOC ID
     Map<String, dynamic> data,
   ) {
     final TextEditingController replyController = TextEditingController(
@@ -108,6 +108,26 @@ class StudentReportsPage extends StatelessWidget {
 
           // DESCRIPTION
           Text(data['description'] ?? ""),
+
+          const SizedBox(height: 10),
+
+          // REPORTED BY
+          Row(
+            children: [
+              const Icon(Icons.person, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Reported by: ${data['reportedBy'] ?? 'Unknown Student'}",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
 
           const SizedBox(height: 10),
 
@@ -151,40 +171,80 @@ class StudentReportsPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // STATUS DROPDOWN
-              DropdownButton<String>(
-                value: status,
-                items: const [
-                  DropdownMenuItem(value: "OPEN", child: Text("OPEN")),
-                  DropdownMenuItem(value: "FOUND", child: Text("FOUND")),
-                  DropdownMenuItem(value: "CLOSED", child: Text("CLOSED")),
-                ],
-                onChanged: (value) async {
-                  if (value == null) return;
-
-                  final docRef = FirebaseFirestore.instance
-                      .collection('student_lost_reports')
-                      .doc(reportId); // ✅ FIXED HERE
-
-                  if (value == "CLOSED") {
-                    // TTL starts ONLY when CLOSED
-                    await docRef.update({
-                      'status': 'CLOSED',
-                      'expireAt': Timestamp.fromDate(
-                        DateTime.now().add(const Duration(days: 7)),
+              // STATUS DROPDOWN OR CONFIRMED BADGE
+              status == "CONFIRMED"
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
                       ),
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    });
-                  } else {
-                    // No TTL for OPEN or FOUND
-                    await docRef.update({
-                      'status': value,
-                      'expireAt': FieldValue.delete(),
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    });
-                  }
-                },
-              ),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        "CONFIRMED BY STUDENT",
+                        style: TextStyle(
+                          color: Colors.deepPurple,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    )
+                  : DropdownButton<String>(
+                      value: status,
+                      items: const [
+                        DropdownMenuItem(value: "OPEN", child: Text("OPEN")),
+                        DropdownMenuItem(value: "FOUND", child: Text("FOUND")),
+                        DropdownMenuItem(
+                          value: "CLOSED",
+                          child: Text("CLOSED"),
+                        ),
+                      ],
+                      onChanged: (value) async {
+                        if (value == null) return;
+
+                        final docRef = FirebaseFirestore.instance
+                            .collection('student_lost_reports')
+                            .doc(reportId); // ✅ FIXED HERE
+
+                        if (value == "CLOSED") {
+                          // TTL starts ONLY when CLOSED
+                          await docRef.update({
+                            'status': 'CLOSED',
+                            'expireAt': Timestamp.fromDate(
+                              DateTime.now().add(const Duration(days: 7)),
+                            ),
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          });
+
+                          // Send notification to the student ONLY if it wasn't already closed
+                          if (status != "CLOSED") {
+                            final studentId = data['reportedBy'];
+                            if (studentId != null &&
+                                studentId.toString().isNotEmpty) {
+                              await FirebaseFirestore.instance
+                                  .collection('Notifications')
+                                  .add({
+                                    'title': 'Lost Item Returned 🎉',
+                                    'message':
+                                        'Your report for "${data['itemName'] ?? 'an item'}" has been marked as Closed. Kindly confirm you have received it.',
+                                    'toUserId': studentId,
+                                    'createdAt': FieldValue.serverTimestamp(),
+                                    'isRead': false,
+                                  });
+                            }
+                          }
+                        } else {
+                          // No TTL for OPEN or FOUND
+                          await docRef.update({
+                            'status': value,
+                            'expireAt': FieldValue.delete(),
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          });
+                        }
+                      },
+                    ),
 
               // SEND REPLY
               ElevatedButton(
@@ -218,6 +278,8 @@ class StudentReportsPage extends StatelessWidget {
         return Colors.green;
       case "CLOSED":
         return Colors.red;
+      case "CONFIRMED":
+        return Colors.deepPurple;
       default:
         return Colors.orange;
     }

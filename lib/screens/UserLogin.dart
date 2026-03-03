@@ -3,12 +3,15 @@ import 'package:bus_tracker/screens/ForgotPassword.dart';
 import 'package:bus_tracker/utils/PasswordUtils.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // import dashboards
 import 'package:bus_tracker/screens/BusSecretaryDashboard.dart';
 import 'package:bus_tracker/screens/BusAttendantDashboard.dart';
 import 'package:bus_tracker/screens/DriverDashboard.dart';
 import 'package:bus_tracker/screens/StudentDashboard.dart';
+import 'package:bus_tracker/services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserLogin extends StatefulWidget {
   const UserLogin({super.key});
@@ -364,6 +367,24 @@ class UserLoginState extends State<UserLogin> {
         'FirstFailedAt': null,
         'LockUntil': null,
       });
+
+      //  SAVE FCM TOKEN AFTER LOGIN
+      final token = await FirebaseMessaging.instance.getToken();
+
+      if (token != null) {
+        await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(textField1)
+            .update({'fcmToken': token});
+      }
+
+      // START NOTIFICATION LISTENER
+      NotificationService.startListening(textField1);
+
+      // SAVE LOGIN STATE
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userId', textField1);
+      await prefs.setString('role', role);
 
       //  REDIRECT BY ROLE
       switch (role) {

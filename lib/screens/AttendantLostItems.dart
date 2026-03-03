@@ -1,6 +1,10 @@
 import 'package:bus_tracker/screens/StudentReportsPage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class AttendantLostItems extends StatefulWidget {
   const AttendantLostItems({super.key});
@@ -12,29 +16,75 @@ class AttendantLostItems extends StatefulWidget {
 class _AttendantLostItemsState extends State<AttendantLostItems> {
   final _itemNameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _imageUrlController = TextEditingController();
 
+  File? _selectedImage;
   bool _loading = false;
 
-  // ---------------- SUBMIT ----------------
+  // ================= IMAGE PICKER =================
+
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    if (picked != null) {
+      setState(() {
+        _selectedImage = File(picked.path);
+      });
+    }
+  }
+
+  // ================= CLOUDINARY UPLOAD =================
+
+  Future<String?> _uploadToCloudinary() async {
+    if (_selectedImage == null) return null;
+
+    final url = Uri.parse(
+      "https://api.cloudinary.com/v1_1/dqykgonu8/image/upload",
+    );
+
+    final request = http.MultipartRequest("POST", url)
+      ..fields['upload_preset'] = 'Way2College Lost Items';
+
+    final bytes = await _selectedImage!.readAsBytes();
+    final fileName = _selectedImage!.path.split('/').last;
+
+    request.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+    );
+
+    final response = await request.send();
+    final responseData = await response.stream.bytesToString();
+    final data = jsonDecode(responseData);
+
+    return data['secure_url'];
+  }
+
+  // ================= SUBMIT =================
 
   Future<void> _submitLostItem() async {
     if (_itemNameController.text.isEmpty ||
         _descriptionController.text.isEmpty ||
-        _imageUrlController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please fill all fields")));
+        _selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please fill all fields and upload image"),
+        ),
+      );
       return;
     }
 
     setState(() => _loading = true);
 
     try {
+      final imageUrl = await _uploadToCloudinary();
+
+      if (imageUrl == null) {
+        throw Exception("Image upload failed");
+      }
+
       await FirebaseFirestore.instance.collection('lost_items').add({
         'itemName': _itemNameController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'imageUrl': _imageUrlController.text.trim(),
+        'imageUrl': imageUrl,
         'reportedBy': 'ATTENDANT',
         'status': 'FOUND',
         'createdAt': FieldValue.serverTimestamp(),
@@ -42,10 +92,13 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
 
       _itemNameController.clear();
       _descriptionController.clear();
-      _imageUrlController.clear();
+
+      setState(() {
+        _selectedImage = null;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lost item registered successfully")),
+        const SnackBar(content: Text("Item registered successfully")),
       );
     } catch (e) {
       ScaffoldMessenger.of(
@@ -56,7 +109,7 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
     setState(() => _loading = false);
   }
 
-  // ---------------- UI ----------------
+  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
@@ -106,30 +159,39 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
                         hint: "Item description",
                         maxLines: 3,
                       ),
-                      const SizedBox(height: 12),
-
-                      _inputField(
-                        controller: _imageUrlController,
-                        hint: "Paste image URL",
-                      ),
                       const SizedBox(height: 16),
 
+                      // IMAGE BUTTON
+                      ElevatedButton.icon(
+                        onPressed: _pickImage,
+                        icon: const Icon(Icons.image, color: Colors.white),
+                        label: const Text(
+                          "Upload Image",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          minimumSize: const Size(double.infinity, 45),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
                       // IMAGE PREVIEW
-                      if (_imageUrlController.text.isNotEmpty)
+                      if (_selectedImage != null)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            _imageUrlController.text,
-                            height: 150,
+                          child: Image.file(
+                            _selectedImage!,
+                            height: 160,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const Text("Invalid image URL"),
                           ),
                         ),
 
                       const SizedBox(height: 16),
 
+                      // SUBMIT BUTTON
                       ElevatedButton(
                         onPressed: _loading ? null : _submitLostItem,
                         style: ElevatedButton.styleFrom(
@@ -140,7 +202,10 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
                             ? const CircularProgressIndicator(
                                 color: Colors.white,
                               )
-                            : const Text("Submit"),
+                            : const Text(
+                                "Submit",
+                                style: TextStyle(color: Colors.white),
+                              ),
                       ),
 
                       const SizedBox(height: 20),
@@ -169,7 +234,7 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
     );
   }
 
-  // ---------------- HELPERS ----------------
+  // ================= PREVIOUS ITEMS =================
 
   Widget _previousItemsList() {
     return StreamBuilder<QuerySnapshot>(
@@ -191,6 +256,17 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
             ...snapshot.data!.docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               return ListTile(
+                leading:
+                    (data['imageUrl'] != null &&
+                        data['imageUrl'].toString().startsWith("http"))
+                    ? Image.network(
+                        data['imageUrl'],
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.image),
+                      )
+                    : const Icon(Icons.image),
                 title: Text(data['itemName']),
                 subtitle: Text(data['description']),
               );
@@ -200,6 +276,8 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
       },
     );
   }
+
+  // ================= HELPERS =================
 
   Widget _inputField({
     required TextEditingController controller,

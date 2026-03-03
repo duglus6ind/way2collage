@@ -39,9 +39,7 @@ class UserManagementScreen extends StatelessWidget {
                   _whiteButton("ADD USERS", () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const BulkUserUploadScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const AddUsersScreen()),
                     );
                   }),
                 ],
