@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/services/notification_service.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:bus_tracker/utils/marker_helper.dart';
+import 'package:bus_tracker/services/directions_service.dart';
 
 class DriverMap extends StatefulWidget {
   final String userId;
@@ -20,13 +21,30 @@ class _DriverMapState extends State<DriverMap> {
   StreamSubscription<DocumentSnapshot>? _userSubscription;
   StreamSubscription<Position>? _positionStream;
   LatLng? _currentPosition;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
   String _loadingMessage = "Acquiring GPS location...";
+  BitmapDescriptor? _busIcon;
+
+  List<LatLng> _polylineCoordinates = [];
+  String _distance = "";
+  String _duration = "";
+  bool _isFetchingRoute = false;
+  bool _isTripStarted = false;
 
   @override
   void initState() {
     super.initState();
+    _loadCustomMarker();
     _initDriverLocation();
+  }
+
+  Future<void> _loadCustomMarker() async {
+    try {
+      _busIcon = await getMarkerIconFromData(Icons.directions_bus, Colors.blue);
+      if (mounted) setState(() {});
+    } catch (e) {
+      print("Error loading custom marker: $e");
+    }
   }
 
   Future<void> _initDriverLocation() async {
@@ -42,6 +60,9 @@ class _DriverMapState extends State<DriverMap> {
               setState(() {
                 _busId = data['AssignedBusId'];
               });
+              if (_busId != null && !_isFetchingRoute) {
+                _fetchRoutePath(_busId!);
+              }
             }
           }
         });
@@ -110,12 +131,14 @@ class _DriverMapState extends State<DriverMap> {
               _currentPosition = LatLng(position.latitude, position.longitude);
             });
             if (!isFirst) {
-              _mapController.move(_currentPosition!, 16.0); // Center map
+              _mapController?.animateCamera(
+                CameraUpdate.newLatLngZoom(_currentPosition!, 16.0),
+              ); // Center map
             }
           }
 
-          // 4. Update Firestore
-          if (_busId != null) {
+          // 4. Update Firestore only if trip is started
+          if (_busId != null && _isTripStarted) {
             FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
               'latitude': position.latitude,
               'longitude': position.longitude,
@@ -123,6 +146,77 @@ class _DriverMapState extends State<DriverMap> {
             });
           }
         });
+  }
+
+  Future<void> _fetchRoutePath(String busId) async {
+    if (_isFetchingRoute || !_isTripStarted) return;
+    setState(() => _isFetchingRoute = true);
+
+    try {
+      final busDoc = await FirebaseFirestore.instance
+          .collection('Buses')
+          .doc(busId)
+          .get();
+      if (!busDoc.exists) return;
+      final routeId = busDoc.data()?['routeId'];
+      if (routeId == null) return;
+
+      final routeDoc = await FirebaseFirestore.instance
+          .collection('Routes')
+          .doc(routeId)
+          .get();
+      if (!routeDoc.exists) return;
+
+      final stops = routeDoc.data()?['Stops'] as List<dynamic>?;
+      if (stops == null || stops.isEmpty) return;
+
+      List<dynamic> waypoints = [];
+      dynamic destination;
+
+      for (int i = 0; i < stops.length; i++) {
+        final stop = stops[i];
+        dynamic locationPoint;
+
+        // Use exact Map GPS coordinate if the Secretary selected one, else fallback to String query
+        if (stop['lat'] != null && stop['lng'] != null) {
+          locationPoint = LatLng(
+            (stop['lat'] as num).toDouble(),
+            (stop['lng'] as num).toDouble(),
+          );
+        } else {
+          locationPoint = stop['name'].toString();
+        }
+
+        if (i == stops.length - 1) {
+          destination = locationPoint; // Last stop is destination
+        } else {
+          waypoints.add(locationPoint);
+        }
+      }
+
+      while (_currentPosition == null) {
+        await Future.delayed(const Duration(seconds: 1));
+        if (!mounted) return;
+      }
+
+      final dirData = await DirectionsService.getDirections(
+        origin: _currentPosition!,
+        destination: destination,
+        waypoints: waypoints,
+      );
+
+      if (dirData != null && mounted) {
+        setState(() {
+          _distance = dirData['distance'];
+          _duration = dirData['duration'];
+          _polylineCoordinates = dirData['polylineCoordinates'];
+        });
+      }
+    } catch (e) {
+      print("Error fetching route path: $e");
+    } finally {
+      if (mounted) setState(() => _isFetchingRoute = false);
+    }
   }
 
   @override
@@ -141,50 +235,89 @@ class _DriverMapState extends State<DriverMap> {
           children: [
             // ACTUAL MAP
             Positioned.fill(
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter:
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target:
                       _currentPosition ??
                       const LatLng(9.847694, 76.942194), // GEC Idukki
-                  initialZoom: 16.0,
-                  maxZoom: 18.0,
+                  zoom: 16.0,
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.bus_tracker',
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      if (_currentPosition != null)
-                        Marker(
-                          point: _currentPosition!,
-                          width: 60,
-                          height: 60,
-                          child: const Icon(
-                            Icons.directions_bus,
-                            color: Colors.blue,
-                            size: 40,
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                },
+                zoomControlsEnabled: false,
+                myLocationEnabled: true,
+                markers: {
+                  if (_currentPosition != null)
+                    Marker(
+                      markerId: const MarkerId('busPosition'),
+                      position: _currentPosition!,
+                      icon:
+                          _busIcon ??
+                          BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueBlue,
                           ),
-                        )
-                      else
-                        const Marker(
-                          point: LatLng(9.847694, 76.942194),
-                          width: 60,
-                          height: 60,
-                          child: Icon(
-                            Icons.school,
-                            color: Colors.red,
-                            size: 40,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+                    )
+                  else
+                    Marker(
+                      markerId: const MarkerId('schoolPosition'),
+                      position: const LatLng(9.847694, 76.942194),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueRed,
+                      ),
+                    ),
+                },
+                polylines: {
+                  if (_polylineCoordinates.isNotEmpty)
+                    Polyline(
+                      polylineId: const PolylineId('route_path'),
+                      color: Colors.blueAccent,
+                      width: 5,
+                      points: _polylineCoordinates,
+                    ),
+                },
               ),
             ),
+
+            // ETA INFO CARD (Top right)
+            if (_distance.isNotEmpty && _duration.isNotEmpty)
+              Positioned(
+                top: 80,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        _distance,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _duration,
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // LOADING MESSAGE OVERLAY (Top center if loading)
             if (_currentPosition == null)
@@ -241,10 +374,79 @@ class _DriverMapState extends State<DriverMap> {
                 ),
               ),
             ),
+
+            // START/END TRIP BOTTOM PANEL
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isTripStarted
+                      ? Colors.red
+                      : const Color(0xFF095C42),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  elevation: 6,
+                ),
+                onPressed: _toggleTrip,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _isTripStarted
+                          ? Icons.stop_circle
+                          : Icons.play_circle_fill,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _isTripStarted ? "END TRIP" : "START TRIP",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  // ---------------- TRIP TOGGLE ----------------
+  void _toggleTrip() {
+    setState(() {
+      _isTripStarted = !_isTripStarted;
+
+      if (_isTripStarted) {
+        // Start Trip
+        if (_busId != null) {
+          _fetchRoutePath(_busId!);
+        }
+      } else {
+        // End Trip
+        _polylineCoordinates.clear();
+        _distance = "";
+        _duration = "";
+      }
+    });
+
+    if (_isTripStarted && _busId != null && _currentPosition != null) {
+      // Immediately push first coordinate to wake up student apps
+      FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+        'latitude': _currentPosition!.latitude,
+        'longitude': _currentPosition!.longitude,
+        'lastLocationUpdate': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   // ---------------- STATUS DISPLAY ----------------

@@ -1,6 +1,10 @@
 import 'package:bus_tracker/utils/id_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/screens/MapPickerScreen.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:bus_tracker/screens/MapPickerScreen.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class AssignBusScreen extends StatefulWidget {
   const AssignBusScreen({super.key});
@@ -411,6 +415,7 @@ class _AddRouteDialog extends StatefulWidget {
 class _AddRouteDialogState extends State<_AddRouteDialog> {
   final TextEditingController routeController = TextEditingController();
   final List<TextEditingController> stopControllers = [TextEditingController()];
+  final List<LatLng?> stopCoordinates = [null];
 
   bool isSaving = false;
 
@@ -458,6 +463,7 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
                 onPressed: () {
                   setState(() {
                     stopControllers.add(TextEditingController());
+                    stopCoordinates.add(null);
                   });
                 },
               ),
@@ -512,8 +518,38 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
                 decoration: InputDecoration(
                   labelText: "Stop ${index + 1}",
                   border: const OutlineInputBorder(),
+                  filled: true,
+                  fillColor: stopCoordinates[index] != null
+                      ? Colors.green.withOpacity(0.1)
+                      : null,
                 ),
               ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(
+                stopCoordinates[index] != null
+                    ? Icons.map
+                    : Icons.add_location_alt_outlined,
+                color: stopCoordinates[index] != null
+                    ? Colors.green
+                    : Colors.blue,
+              ),
+              onPressed: () async {
+                final LatLng? result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MapPickerScreen(
+                      initialPosition: stopCoordinates[index],
+                    ),
+                  ),
+                );
+                if (result != null) {
+                  setState(() {
+                    stopCoordinates[index] = result;
+                  });
+                }
+              },
             ),
             if (stopControllers.length > 1)
               IconButton(
@@ -521,6 +557,7 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
                 onPressed: () {
                   setState(() {
                     stopControllers.removeAt(index);
+                    stopCoordinates.removeAt(index);
                   });
                 },
               ),
@@ -539,7 +576,13 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
     for (int i = 0; i < stopControllers.length; i++) {
       final stopName = stopControllers[i].text.trim();
       if (stopName.isNotEmpty) {
-        stops.add({'name': stopName, 'order': i + 1});
+        final coord = stopCoordinates[i];
+        stops.add({
+          'name': stopName,
+          'order': i + 1,
+          'lat': coord?.latitude,
+          'lng': coord?.longitude,
+        });
       }
     }
 
@@ -564,7 +607,9 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
 
     routeController.clear();
     stopControllers.clear();
+    stopCoordinates.clear();
     stopControllers.add(TextEditingController());
+    stopCoordinates.add(null);
   }
 
   Widget _buildRouteList() {

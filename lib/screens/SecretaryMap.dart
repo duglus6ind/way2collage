@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:bus_tracker/utils/marker_helper.dart';
 
 class SecretaryMap extends StatefulWidget {
   final String userId;
@@ -14,14 +14,38 @@ class SecretaryMap extends StatefulWidget {
 
 class _SecretaryMapState extends State<SecretaryMap> {
   StreamSubscription<QuerySnapshot>? _busesSubscription;
-  List<Marker> _busMarkers = [];
-  final MapController _mapController = MapController();
+  Set<Marker> _busMarkers = {};
+  GoogleMapController? _mapController;
   LatLng? _initialCenter;
+  BitmapDescriptor? _busIconGreen;
+  BitmapDescriptor? _busIconOrange;
+  BitmapDescriptor? _busIconRed;
 
   @override
   void initState() {
     super.initState();
+    _loadCustomMarker();
     _initBusesListener();
+  }
+
+  Future<void> _loadCustomMarker() async {
+    try {
+      _busIconGreen = await getMarkerIconFromData(
+        Icons.directions_bus,
+        Colors.green,
+      );
+      _busIconOrange = await getMarkerIconFromData(
+        Icons.directions_bus,
+        Colors.orange,
+      );
+      _busIconRed = await getMarkerIconFromData(
+        Icons.directions_bus,
+        Colors.red,
+      );
+      if (mounted) setState(() {});
+    } catch (e) {
+      print("Error loading custom marker: $e");
+    }
   }
 
   void _initBusesListener() {
@@ -30,7 +54,7 @@ class _SecretaryMapState extends State<SecretaryMap> {
         .snapshots()
         .listen((snap) {
           if (!mounted) return;
-          List<Marker> newMarkers = [];
+          Set<Marker> newMarkers = {};
           LatLng? firstLoc;
 
           for (var bus in snap.docs) {
@@ -41,29 +65,25 @@ class _SecretaryMapState extends State<SecretaryMap> {
               final pt = LatLng(lat, lng);
               if (firstLoc == null) firstLoc = pt;
 
-              Color markerColor = Colors.green;
-              if (data['status'] == 'DELAYED') markerColor = Colors.orange;
-              if (data['status'] == 'BREAKDOWN') markerColor = Colors.red;
+              double markerHue = BitmapDescriptor.hueGreen;
+              BitmapDescriptor? customIcon = _busIconGreen;
+
+              if (data['status'] == 'DELAYED') {
+                markerHue = BitmapDescriptor.hueOrange;
+                customIcon = _busIconOrange;
+              }
+              if (data['status'] == 'BREAKDOWN') {
+                markerHue = BitmapDescriptor.hueRed;
+                customIcon = _busIconRed;
+              }
 
               newMarkers.add(
                 Marker(
-                  point: pt,
-                  width: 50,
-                  height: 50,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(Icons.location_on, color: markerColor, size: 50),
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8.0),
-                        child: Icon(
-                          Icons.directions_bus,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
+                  markerId: MarkerId(bus.id),
+                  position: pt,
+                  icon:
+                      customIcon ??
+                      BitmapDescriptor.defaultMarkerWithHue(markerHue),
                 ),
               );
             }
@@ -93,39 +113,29 @@ class _SecretaryMapState extends State<SecretaryMap> {
           children: [
             // ACTUAL MAP
             Positioned.fill(
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter:
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target:
                       _initialCenter ??
                       const LatLng(9.847694, 76.942194), // GEC Idukki
-                  initialZoom: 13.0,
-                  maxZoom: 18.0,
+                  zoom: 13.0,
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.bus_tracker',
-                  ),
-                  if (_initialCenter == null)
-                    const MarkerLayer(
-                      markers: [
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                },
+                zoomControlsEnabled: false,
+                myLocationEnabled: true,
+                markers: _initialCenter == null
+                    ? {
                         Marker(
-                          point: LatLng(9.847694, 76.942194),
-                          width: 60,
-                          height: 60,
-                          child: Icon(
-                            Icons.school,
-                            color: Colors.red,
-                            size: 40,
+                          markerId: const MarkerId('schoolPosition'),
+                          position: const LatLng(9.847694, 76.942194),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueRed,
                           ),
                         ),
-                      ],
-                    )
-                  else
-                    MarkerLayer(markers: _busMarkers),
-                ],
+                      }
+                    : _busMarkers,
               ),
             ),
 
@@ -243,9 +253,8 @@ class _SecretaryMapState extends State<SecretaryMap> {
                 (data['latitude'] as num).toDouble(),
                 (data['longitude'] as num).toDouble(),
               );
-              _mapController.move(
-                pt,
-                16.0,
+              _mapController?.animateCamera(
+                CameraUpdate.newLatLngZoom(pt, 16.0),
               ); // Focus on this bus when card clicked
             }
           },
