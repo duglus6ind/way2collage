@@ -2,10 +2,12 @@ import 'package:bus_tracker/screens/AssignBus.dart';
 import 'package:bus_tracker/screens/AssignRole.dart';
 import 'package:bus_tracker/screens/ProfilePage.dart';
 import 'package:bus_tracker/screens/SecretaryMap.dart';
+import 'package:bus_tracker/screens/SecretaryEmergencyList.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/screens/UserManagement.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bus_tracker/widgets/NotificationBell.dart';
 
 class BusSecretaryDashboard extends StatelessWidget {
   final String userId;
@@ -23,7 +25,11 @@ class BusSecretaryDashboard extends StatelessWidget {
           child: Stack(
             children: [
               // TOP BAR ICONS
-              Positioned(top: 60, left: 22, child: _iconBox(Icons.person)),
+              Positioned(
+                top: 60,
+                left: 22,
+                child: NotificationBell(userId: userId),
+              ),
               Positioned(
                 top: 60,
                 right: 22,
@@ -139,7 +145,17 @@ class BusSecretaryDashboard extends StatelessWidget {
                     children: [
                       _gradientTile("Bus Pass Fee"),
                       const SizedBox(height: 16),
-                      _gradientTile("Emergency Help"),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SecretaryEmergencyList(),
+                            ),
+                          );
+                        },
+                        child: _gradientTile("Emergency Help"),
+                      ),
                     ],
                   ),
                 ),

@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:bus_tracker/main.dart'; // To access flutterLocalNotificationsPlugin
+import 'package:flutter/material.dart';
+import 'package:bus_tracker/main.dart'; // To access flutterLocalNotificationsPlugin & navigatorKey
 
 class NotificationService {
   static StreamSubscription? _subscription;
@@ -13,6 +14,7 @@ class NotificationService {
     required String message,
     required String busId,
     required String busName,
+    String? payload,
   }) async {
     await FirebaseFirestore.instance.collection('Notifications').add({
       'title': title,
@@ -21,6 +23,7 @@ class NotificationService {
       'busId': busId,
       'busName': busName,
       'type': 'BUS_STATUS',
+      'payload': payload,
       'createdAt': FieldValue.serverTimestamp(),
       'isRead': false,
     });
@@ -33,8 +36,7 @@ class NotificationService {
     _subscription = FirebaseFirestore.instance
         .collection('Notifications')
         .where('toUserId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(10)
+        // .orderBy and .limit removed because they require a composite index that is not present.
         .snapshots()
         .listen((snapshot) {
           if (_isFirstLoad) {
@@ -45,10 +47,41 @@ class NotificationService {
           for (var change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added) {
               final data = change.doc.data() as Map<String, dynamic>;
-              _showLocalNotification(
-                data['title'] ?? 'New Notification',
-                data['message'] ?? '',
-              );
+              final title = data['title'] ?? 'New Notification';
+              final message = data['message'] ?? '';
+              final payload = data['payload'];
+
+              _showLocalNotification(title, message, payload);
+
+              // Show an in-app pop up notification
+              final context = navigatorKey.currentContext;
+              if (context != null) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    title: Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    content: Text(message),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'OK',
+                          style: TextStyle(
+                            color: Color(0xFF095C42),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
             }
           }
         });
@@ -59,7 +92,11 @@ class NotificationService {
     _subscription = null;
   }
 
-  static Future<void> _showLocalNotification(String title, String body) async {
+  static Future<void> _showLocalNotification(
+    String title,
+    String body, [
+    String? payload,
+  ]) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
           'bus_channel',
@@ -79,6 +116,7 @@ class NotificationService {
       title,
       body,
       platformDetails,
+      payload: payload,
     );
   }
 }

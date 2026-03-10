@@ -4,6 +4,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'firebase_options.dart';
 import 'screens/LoadingScreen1.dart';
+import 'screens/SecretaryEmergencyDetail.dart'; // We will create this
+import 'screens/DriverEmergencyList.dart'; // We will create this
+import 'package:shared_preferences/shared_preferences.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// 🔹 Background handler (must be top-level)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -61,9 +66,16 @@ class _MyAppState extends State<MyApp> {
 
     await flutterLocalNotificationsPlugin.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: (response) {
-        print("Notification tapped");
-        // You can navigate here later
+      onDidReceiveNotificationResponse: (response) async {
+        print("Notification tapped with payload: ${response.payload}");
+        if (response.payload != null &&
+            response.payload!.startsWith("EMERGENCY|")) {
+          final parts = response.payload!.split("|");
+          if (parts.length >= 2) {
+            final emergencyId = parts[1];
+            _handleEmergencyNavigation(emergencyId);
+          }
+        }
       },
     );
 
@@ -92,13 +104,31 @@ class _MyAppState extends State<MyApp> {
     /// 🔹 When user taps notification (app in background)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print("Notification opened from background");
-      // Add navigation logic here later
+      // Could also handle data payload here if sent via FCM directly
     });
+  }
+
+  void _handleEmergencyNavigation(String emergencyId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final role = prefs.getString('role');
+
+    if (role == 'Bus Secretary') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => SecretaryEmergencyDetail(emergencyId: emergencyId),
+        ),
+      );
+    } else if (role == 'Driver' || role == 'Bus Attendant') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const DriverEmergencyList()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       home: LoadingScreen1(),
     );

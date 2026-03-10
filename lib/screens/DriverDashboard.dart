@@ -1,9 +1,11 @@
 import 'package:bus_tracker/screens/DriverMap.dart';
 import 'package:bus_tracker/screens/ProfilePage.dart';
+import 'package:bus_tracker/screens/DriverEmergencyList.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bus_tracker/widgets/NotificationBell.dart';
 
 class DriverDashboard extends StatelessWidget {
   final String userId;
@@ -26,7 +28,7 @@ class DriverDashboard extends StatelessWidget {
                   _topChip("Way2College"),
                   Row(
                     children: [
-                      _iconBox(Icons.notifications_none),
+                      NotificationBell(userId: userId),
                       const SizedBox(width: 12),
                       PopupMenuButton<String>(
                         onSelected: (value) {
@@ -75,7 +77,12 @@ class DriverDashboard extends StatelessWidget {
                     color: const Color(0xFF8E8BC7),
                     // iconColor: Colors.red,
                     onTap: () {
-                      // Emergency logic
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DriverEmergencyList(),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 12),
