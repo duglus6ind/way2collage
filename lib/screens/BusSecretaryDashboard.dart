@@ -3,10 +3,7 @@ import 'package:bus_tracker/screens/AssignRole.dart';
 import 'package:bus_tracker/screens/ProfilePage.dart';
 import 'package:bus_tracker/screens/SecretaryMap.dart';
 import 'package:bus_tracker/screens/SecretaryEmergencyList.dart';
-<<<<<<< HEAD
 import 'package:bus_tracker/screens/BusPassApplicationsScreen.dart';
-=======
->>>>>>> bec86010b63bbced6bd5b89fd009d5f2e03a558f
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/screens/UserManagement.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
@@ -92,7 +89,6 @@ class BusSecretaryDashboard extends StatelessWidget {
                           );
                         },
                       ),
-<<<<<<< HEAD
                       const SizedBox(height: 16),
                       _whiteTile(
                         "Bus Pass Applications",
@@ -105,8 +101,6 @@ class BusSecretaryDashboard extends StatelessWidget {
                           );
                         },
                       ),
-=======
->>>>>>> bec86010b63bbced6bd5b89fd009d5f2e03a558f
                     ],
                   ),
                 ),
@@ -114,11 +108,7 @@ class BusSecretaryDashboard extends StatelessWidget {
 
               // USER MANAGEMENT BUTTON
               Positioned(
-<<<<<<< HEAD
                 top: 510, // Shifted down by 95px to accommodate the new tile in the green card
-=======
-                top: 415,
->>>>>>> bec86010b63bbced6bd5b89fd009d5f2e03a558f
                 left: 45,
                 right: 45,
                 child: GestureDetector(
@@ -158,11 +148,7 @@ class BusSecretaryDashboard extends StatelessWidget {
 
               // LOWER WHITE CARD
               Positioned(
-<<<<<<< HEAD
                 top: 591, // Shifted down by 95px
-=======
-                top: 496,
->>>>>>> bec86010b63bbced6bd5b89fd009d5f2e03a558f
                 left: 24,
                 right: 24,
                 child: Container(
