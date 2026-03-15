@@ -1,6 +1,9 @@
 import 'package:bus_tracker/screens/ProfilePage.dart';
 import 'package:bus_tracker/screens/StudentLostItems.dart';
+<<<<<<< HEAD
 import 'package:bus_tracker/screens/StudentBusPass.dart';
+=======
+>>>>>>> bec86010b63bbced6bd5b89fd009d5f2e03a558f
 import 'package:bus_tracker/screens/StudentMap.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -158,6 +161,7 @@ class StudentDashboard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
+<<<<<<< HEAD
             // APPLY FOR BUS PASS
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -196,6 +200,8 @@ class StudentDashboard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
+=======
+>>>>>>> bec86010b63bbced6bd5b89fd009d5f2e03a558f
             // REPORT LOST ITEM
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
