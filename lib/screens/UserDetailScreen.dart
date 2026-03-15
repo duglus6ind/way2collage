@@ -19,6 +19,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
+  late TextEditingController emailController;
+  late TextEditingController phoneController;
 
   bool isEditMode = false;
 
@@ -34,6 +36,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     final data = widget.userDoc.data() as Map<String, dynamic>;
     nameController = TextEditingController(text: data['Name']);
     userIdController = TextEditingController(text: data['UserId']);
+    emailController = TextEditingController(text: data['Email'] ?? '');
+    phoneController = TextEditingController(text: data['Phone'] ?? '');
     selectedRole = data['Role'];
     super.initState();
   }
@@ -64,6 +68,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
         'UserId': newUserId,
         'Name': nameController.text.trim(),
         'Role': selectedRole,
+        'Email': emailController.text.trim(),
+        'Phone': phoneController.text.trim(),
       });
 
       await FirebaseFirestore.instance
@@ -72,7 +78,12 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           .delete();
     } else {
       await FirebaseFirestore.instance.collection('Users').doc(oldDocId).update(
-        {'Name': nameController.text.trim(), 'Role': selectedRole},
+        {
+          'Name': nameController.text.trim(),
+          'Role': selectedRole,
+          'Email': emailController.text.trim(),
+          'Phone': phoneController.text.trim(),
+        },
       );
     }
 
@@ -244,6 +255,14 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             isEditMode
                 ? _editField("User ID", userIdController)
                 : _infoTile("User ID", data['UserId']),
+
+            isEditMode
+                ? _editField("Email", emailController)
+                : _infoTile("Email", data['Email'] ?? '-'),
+
+            isEditMode
+                ? _editField("Phone", phoneController)
+                : _infoTile("Phone", data['Phone'] ?? '-'),
 
             isEditMode ? _roleDropdown() : _infoTile("Role", data['Role']),
 

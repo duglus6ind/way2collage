@@ -2,6 +2,7 @@ import 'package:bus_tracker/screens/AttendantLostItems.dart';
 import 'package:bus_tracker/screens/AttendantMap.dart';
 import 'package:bus_tracker/screens/ProfilePage.dart';
 import 'package:bus_tracker/screens/DriverEmergencyList.dart';
+import 'package:bus_tracker/screens/BusPassVerificationScreen.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -78,7 +79,12 @@ class BusAttendantDashboard extends StatelessWidget {
                     text: "Bus Pass Verify",
                     color: const Color(0xFF8E8BC7),
                     onTap: () {
-                      // navigate to bus pass verify
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BusPassVerificationScreen(),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 12),

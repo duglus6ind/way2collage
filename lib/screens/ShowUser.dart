@@ -196,10 +196,14 @@ class _ShowUsersScreenState extends State<ShowUsersScreen> {
             onPressed: () async {
               Navigator.pop(context);
 
+              final Map<String, dynamic> updates = {'Active': !isActive};
+              if (!isActive) {
+                updates['ActivationDate'] = FieldValue.serverTimestamp();
+              }
               await FirebaseFirestore.instance
                   .collection('Users')
                   .doc(user.id)
-                  .update({'Active': !isActive});
+                  .update(updates);
 
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

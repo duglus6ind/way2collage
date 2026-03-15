@@ -54,6 +54,8 @@ class ProfilePage extends StatelessWidget {
                   final String name = data['Name'] ?? "Unknown";
                   final String userCode = data['UserId'] ?? "-";
                   final String role = data['Role'] ?? "User";
+                  final String email = data['Email'] ?? "-";
+                  final String phone = data['Phone'] ?? "-";
                   final bool isActive = data['Active'] ?? false;
 
                   return SingleChildScrollView(
@@ -67,10 +69,11 @@ class ProfilePage extends StatelessWidget {
 
                         const SizedBox(height: 24),
 
-                        // DETAILS CARD
                         _detailsCard(
                           userId: userCode,
                           role: role,
+                          email: email,
+                          phone: phone,
                           isActive: isActive,
                         ),
                       ],
@@ -150,6 +153,8 @@ class ProfilePage extends StatelessWidget {
   Widget _detailsCard({
     required String userId,
     required String role,
+    required String email,
+    required String phone,
     required bool isActive,
   }) {
     return Container(
@@ -165,6 +170,10 @@ class ProfilePage extends StatelessWidget {
           _infoRow("User ID", userId),
           const Divider(height: 1),
           _infoRow("Role", role),
+          const Divider(height: 1),
+          _infoRow("Email", email),
+          const Divider(height: 1),
+          _infoRow("Phone", phone),
           const Divider(height: 1),
           _statusRow(isActive),
         ],

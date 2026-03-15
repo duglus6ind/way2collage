@@ -17,6 +17,8 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
   final _userIdController = TextEditingController();
   final _nameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   String role = 'Student';
 
   // -------- CSV --------
@@ -164,6 +166,8 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
             _sheetTitle("Add Single User"),
             _textField(_userIdController, "User ID"),
             _textField(_nameController, "Name"),
+            _textField(_emailController, "Email ID"),
+            _textField(_phoneController, "Phone Number"),
             _textField(_passwordController, "Password"),
             DropdownButtonFormField(
               value: role,
@@ -197,6 +201,8 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
     final userId = _userIdController.text.trim();
     final name = _nameController.text.trim();
     final password = _passwordController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
 
     List<String> errors = [];
 
@@ -211,6 +217,20 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
 
     if (password.isEmpty) {
       errors.add("Password is required");
+    }
+
+    if (email.isEmpty) {
+      errors.add("Email is required");
+    } else if (!RegExp(
+      r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+',
+    ).hasMatch(email)) {
+      errors.add("Invalid email format");
+    }
+
+    if (phone.isEmpty) {
+      errors.add("Phone number is required");
+    } else if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
+      errors.add("Phone number must be exactly 10 digits");
     }
 
     // -------- NAME VALIDATION --------
@@ -252,7 +272,10 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
       'Name': name,
       'Role': role,
       'Password': hashPassword(password),
+      'Email': email,
+      'Phone': phone,
       'Active': true,
+      'ActivationDate': FieldValue.serverTimestamp(),
       'ForcePasswordReset': true,
     });
 
@@ -265,6 +288,8 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
     _userIdController.clear();
     _nameController.clear();
     _passwordController.clear();
+    _emailController.clear();
+    _phoneController.clear();
     role = 'Student';
   }
 
@@ -370,13 +395,24 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
   Future<void> _validateCSV() async {
     final nameRegex = RegExp(r'^[A-Za-z][A-Za-z ]*$');
     final seenUserIds = <String>{};
+    final emailRegex = RegExp(r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+');
+    final phoneRegex = RegExp(r'^\d{10}$');
 
     for (int i = 0; i < csvRows.length; i++) {
       final row = csvRows[i];
+      if (row.length < 6) {
+        validationErrors.add(
+          "Row ${i + 2}: Missing columns (Expected: ID, Name, Role, Password, Email, Phone)",
+        );
+        continue;
+      }
+
       final userId = row[0].toString().trim();
       final name = row[1].toString().trim();
+      final email = row[4].toString().trim();
+      final phone = row[5].toString().trim();
 
-      if (userId.isEmpty || name.isEmpty) {
+      if (userId.isEmpty || name.isEmpty || email.isEmpty || phone.isEmpty) {
         validationErrors.add("Row ${i + 2}: Missing required fields");
         continue;
       }
@@ -384,6 +420,16 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
       if (!nameRegex.hasMatch(name)) {
         validationErrors.add(
           "Row ${i + 2}: Invalid name '$name' (letters & spaces only)",
+        );
+      }
+
+      if (!emailRegex.hasMatch(email)) {
+        validationErrors.add("Row ${i + 2}: Invalid email '$email'");
+      }
+
+      if (!phoneRegex.hasMatch(phone)) {
+        validationErrors.add(
+          "Row ${i + 2}: Invalid phone '$phone' (Must be 10 digits)",
         );
       }
 
@@ -422,7 +468,10 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
             'Name': row[1].toString().trim(),
             'Role': row[2].toString().trim(),
             'Password': hashPassword(row[3].toString().trim()),
+            'Email': row[4].toString().trim(),
+            'Phone': row[5].toString().trim(),
             'Active': true,
+            'ActivationDate': FieldValue.serverTimestamp(),
             'ForcePasswordReset': true,
           });
     }
