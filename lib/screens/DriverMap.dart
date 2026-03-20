@@ -36,6 +36,11 @@ class _DriverMapState extends State<DriverMap> {
   BitmapDescriptor? _stopIcon;
   BitmapDescriptor? _destinationIcon;
 
+  // Simulation variables
+  bool _isSimulating = false;
+  Timer? _simulationTimer;
+  int _simulationIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -280,6 +285,7 @@ class _DriverMapState extends State<DriverMap> {
 
   @override
   void dispose() {
+    _simulationTimer?.cancel();
     _userSubscription?.cancel();
     _positionStream?.cancel();
     super.dispose();
@@ -305,7 +311,7 @@ class _DriverMapState extends State<DriverMap> {
                   _mapController = controller;
                 },
                 zoomControlsEnabled: false,
-                myLocationEnabled: true,
+                myLocationEnabled: false,
                 markers: {
                   if (_currentPosition != null)
                     Marker(
@@ -333,7 +339,10 @@ class _DriverMapState extends State<DriverMap> {
                       polylineId: const PolylineId('route_path'),
                       color: Colors.blueAccent,
                       width: 5,
-                      points: _polylineCoordinates,
+                      points: _isSimulating
+                          ? _polylineCoordinates.sublist(
+                              _simulationIndex > 0 ? _simulationIndex - 1 : 0)
+                          : _polylineCoordinates,
                     ),
                 },
               ),
@@ -440,40 +449,76 @@ class _DriverMapState extends State<DriverMap> {
               bottom: 20,
               left: 20,
               right: 20,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isTripStarted
-                      ? Colors.red
-                      : const Color(0xFF095C42),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  elevation: 6,
-                ),
-                onPressed: _toggleTrip,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _isTripStarted
-                          ? Icons.stop_circle
-                          : Icons.play_circle_fill,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _isTripStarted ? "END TRIP" : "START TRIP",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
+              child: _isTripStarted 
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 6,
+                          ),
+                          onPressed: _toggleTrip,
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.stop_circle, size: 24),
+                              SizedBox(width: 8),
+                              Text("END TRIP", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isSimulating ? Colors.orange : Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 6,
+                          ),
+                          onPressed: _toggleSimulation,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(_isSimulating ? Icons.pause_circle : Icons.directions_bus, size: 24),
+                              const SizedBox(width: 8),
+                              Text(_isSimulating ? "STOP SIM" : "SIMULATE", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF095C42),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      elevation: 6,
                     ),
-                  ],
-                ),
-              ),
+                    onPressed: _toggleTrip,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.play_circle_fill, size: 28),
+                        SizedBox(width: 10),
+                        Text("START TRIP", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      ],
+                    ),
+                  ),
             ),
           ],
         ),
@@ -493,6 +538,7 @@ class _DriverMapState extends State<DriverMap> {
         }
       } else {
         // End Trip
+        _stopSimulation();
         _polylineCoordinates.clear();
         _distance = "";
         _duration = "";
@@ -507,6 +553,96 @@ class _DriverMapState extends State<DriverMap> {
         'lastLocationUpdate': FieldValue.serverTimestamp(),
       });
     }
+  }
+
+  // ---------------- SIMULATION LOGIC ----------------
+  void _toggleSimulation() {
+    if (_isSimulating) {
+      _stopSimulation();
+    } else {
+      _startSimulation();
+    }
+  }
+
+  void _startSimulation() {
+    if (_polylineCoordinates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Route path not fetched yet. Please wait.")),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSimulating = true;
+      _simulationIndex = 0;
+    });
+
+    _positionStream?.pause();
+
+    _simulationTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_simulationIndex >= _polylineCoordinates.length) {
+        _stopSimulation();
+        return;
+      }
+
+      final nextPos = _polylineCoordinates[_simulationIndex];
+      setState(() {
+        _currentPosition = nextPos;
+        _updateSimulationETA();
+      });
+
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(nextPos, 16.0),
+      );
+
+      if (_busId != null && _isTripStarted) {
+        FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+          'latitude': nextPos.latitude,
+          'longitude': nextPos.longitude,
+          'lastLocationUpdate': FieldValue.serverTimestamp(),
+        });
+      }
+
+      _simulationIndex++;
+    });
+  }
+
+  void _stopSimulation() {
+    _simulationTimer?.cancel();
+    _simulationTimer = null;
+    if (mounted) {
+      setState(() {
+        _isSimulating = false;
+      });
+    }
+    _positionStream?.resume();
+  }
+
+  void _updateSimulationETA() {
+    if (_simulationIndex >= _polylineCoordinates.length - 1) {
+      _distance = "0 m";
+      _duration = "0 mins";
+      return;
+    }
+
+    double totalRemainingDistanceMeters = 0;
+    for (int i = _simulationIndex; i < _polylineCoordinates.length - 1; i++) {
+      totalRemainingDistanceMeters += Geolocator.distanceBetween(
+        _polylineCoordinates[i].latitude,
+        _polylineCoordinates[i].longitude,
+        _polylineCoordinates[i + 1].latitude,
+        _polylineCoordinates[i + 1].longitude,
+      );
+    }
+
+    if (totalRemainingDistanceMeters > 1000) {
+      _distance = "${(totalRemainingDistanceMeters / 1000).toStringAsFixed(1)} km";
+    } else {
+      _distance = "${totalRemainingDistanceMeters.round()} m";
+    }
+
+    double mins = totalRemainingDistanceMeters / 667; 
+    _duration = "${mins.round()} mins";
   }
 
   // ---------------- STATUS DISPLAY ----------------

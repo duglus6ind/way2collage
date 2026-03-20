@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bus_tracker/screens/UserLogin.dart';
 import 'package:bus_tracker/widgets/NotificationBell.dart';
 import 'dart:ui';
+import 'dart:convert';
 
 class StudentDashboard extends StatelessWidget {
   final String userId;
@@ -547,11 +548,29 @@ class StudentDashboard extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      data['imageUrl'] ?? '',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.person, size: 40),
+                    child: Builder(
+                      builder: (context) {
+                        final String imageUrl = data['imageUrl'] ?? '';
+                        if (imageUrl.startsWith('data:image')) {
+                          try {
+                            final String base64Data = imageUrl.split(',').last;
+                            return Image.memory(
+                              base64Decode(base64Data),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.person, size: 40),
+                            );
+                          } catch (e) {
+                            return const Icon(Icons.person, size: 40);
+                          }
+                        }
+                        return Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.person, size: 40),
+                        );
+                      },
                     ),
                   ),
                 ),
