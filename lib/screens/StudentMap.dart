@@ -430,8 +430,12 @@ class _StudentMapState extends State<StudentMap> {
             
             // ETA Logic
             String? etaInfo;
+            String? etaUpdatedTime;
             if (_distance.isNotEmpty && _duration.isNotEmpty) {
-              etaInfo = "Arriving in $_duration (${_distance})";
+              etaInfo = "Arriving in $_duration ($_distance)";
+              if (_lastFetchTime != null) {
+                etaUpdatedTime = "ETA updated: ${_formatTime(_lastFetchTime!)}";
+              }
             }
 
             switch (status) {
@@ -446,6 +450,7 @@ class _StudentMapState extends State<StudentMap> {
                   color: Colors.white,
                   titleColor: Colors.orange,
                   etaText: etaInfo,
+                  etaUpdatedTime: etaUpdatedTime,
                 );
 
               case "BREAKDOWN":
@@ -456,6 +461,7 @@ class _StudentMapState extends State<StudentMap> {
                   color: Colors.white,
                   titleColor: Colors.red,
                   etaText: etaInfo,
+                  etaUpdatedTime: etaUpdatedTime,
                 );
 
               default:
@@ -466,6 +472,7 @@ class _StudentMapState extends State<StudentMap> {
                   color: Colors.white,
                   titleColor: Colors.green,
                   etaText: etaInfo,
+                  etaUpdatedTime: etaUpdatedTime,
                 );
             }
           },
@@ -512,6 +519,7 @@ class _StudentMapState extends State<StudentMap> {
     required Color color,
     Color titleColor = Colors.black,
     String? etaText,
+    String? etaUpdatedTime,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -526,7 +534,7 @@ class _StudentMapState extends State<StudentMap> {
           // 🔹 Left Color Indicator Bar
           Container(
             width: 6,
-            height: (etaText != null) ? 140 : 100, // Dynamic height
+            height: (etaText != null) ? (etaUpdatedTime != null ? 160 : 140) : 100, // Dynamic height
             decoration: BoxDecoration(
               color: titleColor,
               borderRadius: const BorderRadius.only(
@@ -590,13 +598,30 @@ class _StudentMapState extends State<StudentMap> {
                         color: Colors.blue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
-                        etaText,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
+                      child: Column(
+                        children: [
+                          Text(
+                            etaText,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                          ),
+                          if (etaUpdatedTime != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              etaUpdatedTime,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
