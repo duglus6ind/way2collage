@@ -77,14 +77,15 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           .doc(oldDocId)
           .delete();
     } else {
-      await FirebaseFirestore.instance.collection('Users').doc(oldDocId).update(
-        {
-          'Name': nameController.text.trim(),
-          'Role': selectedRole,
-          'Email': emailController.text.trim(),
-          'Phone': phoneController.text.trim(),
-        },
-      );
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(oldDocId)
+          .update({
+            'Name': nameController.text.trim(),
+            'Role': selectedRole,
+            'Email': emailController.text.trim(),
+            'Phone': phoneController.text.trim(),
+          });
     }
 
     setState(() {
@@ -229,7 +230,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           "User Details",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: const Color(0xFF154C79),
+        backgroundColor: const Color(0xFF095C42),
         actions: [
           IconButton(
             icon: Icon(

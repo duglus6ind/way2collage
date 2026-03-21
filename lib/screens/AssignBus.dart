@@ -16,64 +16,97 @@ class AssignBusScreen extends StatefulWidget {
 class _AssignBusScreenState extends State<AssignBusScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFEEEAEA),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFEEEAEA),
 
-      // ================= APP BAR =================
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF095C42),
-        elevation: 4,
-        shadowColor: Colors.black26,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          color: Colors.white,
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Assign Bus & Routes",
-          style: TextStyle(
+        // ================= APP BAR =================
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF095C42),
+          elevation: 4,
+          shadowColor: Colors.black26,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
             color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 17,
-            letterSpacing: 0.4,
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            "Assign Bus & Routes",
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 17,
+              letterSpacing: 0.4,
+            ),
+          ),
+          bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
+            indicatorSize: TabBarIndicatorSize.tab,
+            tabs: [
+              Tab(text: "REGULAR"),
+              Tab(text: "SPECIAL BOOKINGS"),
+            ],
           ),
         ),
-      ),
 
-      body: Column(
-        children: [
-          Expanded(child: _buildBusList()),
+        body: Column(
+          children: [
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildBusList(),
+                  _buildSpecialTripsList(),
+                ],
+              ),
+            ),
 
-          // Bottom Action Panel
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 6,
-                  offset: Offset(0, -3),
-                ),
-              ],
+            // Bottom Action Panel
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 6,
+                    offset: Offset(0, -3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _primaryButton(
+                          text: "ADD BUS",
+                          onTap: () => _showAddBusDialog(context),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _outlineButton(
+                          text: "ADD ROUTE",
+                          onTap: () => _showAddRouteDialog(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _outlineButton(
+                    text: "SPECIAL BOOKING",
+                    onTap: () => _showSpecialBookingDialog(context),
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              children: [
-                _primaryButton(
-                  text: "ADD BUS",
-                  onTap: () => _showAddBusDialog(context),
-                ),
-                const SizedBox(height: 12),
-                _outlineButton(
-                  text: "ADD ROUTE",
-                  onTap: () => _showAddRouteDialog(context),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -201,6 +234,102 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
     );
   }
 
+  // ================= SPECIAL TRIPS LIST =================
+
+  Widget _buildSpecialTripsList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('SpecialTrips').orderBy('timestamp', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final trips = snapshot.data!.docs;
+        if (trips.isEmpty) {
+          return const Center(child: Text("No special bookings found.", style: TextStyle(fontSize: 16, color: Colors.black54)));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: trips.length,
+          itemBuilder: (context, index) {
+            final trip = trips[index];
+            final tripName = trip['tripName'] ?? 'Unnamed Trip';
+            final busName = trip['busName'] ?? 'Unknown Bus';
+            final destination = trip['destinationName'] ?? 'Unknown Destination';
+            final Timestamp? scheduledTimeTs = trip.data().toString().contains('scheduledTime') ? trip['scheduledTime'] as Timestamp? : null;
+            String timeStr = "Not Scheduled";
+            if (scheduledTimeTs != null) {
+              final dt = scheduledTimeTs.toDate();
+              timeStr = "${dt.day}/${dt.month}/${dt.year} at ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 5,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.event_seat, color: Color(0xFF095C42), size: 22),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          tripName,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmDeleteSpecialTrip(context, trip.id),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text("🚍 Assigned Bus: $busName", style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text("📍 Destination: $destination", style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text("⏰ Scheduled: $timeStr", style: const TextStyle(fontSize: 16)),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteSpecialTrip(BuildContext context, String tripId) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Delete Special Booking"),
+        content: const Text("Are you sure you want to delete this trip?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await FirebaseFirestore.instance.collection('SpecialTrips').doc(tripId).delete();
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ================= BUTTON STYLES =================
 
   Widget _primaryButton({required String text, required VoidCallback onTap}) {
@@ -299,6 +428,10 @@ void _showAddBusDialog(BuildContext context) {
 
 void _showAddRouteDialog(BuildContext context) {
   showDialog(context: context, builder: (_) => const _AddRouteDialog());
+}
+
+void _showSpecialBookingDialog(BuildContext context) {
+  showDialog(context: context, builder: (_) => const _SpecialBookingDialog());
 }
 // ================= ADD BUS DIALOG =================
 
@@ -692,5 +825,325 @@ class _AddRouteDialogState extends State<_AddRouteDialog> {
         ],
       ),
     );
+  }
+}
+
+// ================= SPECIAL BOOKING DIALOG =================
+
+class _SpecialBookingDialog extends StatefulWidget {
+  const _SpecialBookingDialog();
+
+  @override
+  State<_SpecialBookingDialog> createState() => _SpecialBookingDialogState();
+}
+
+class _SpecialBookingDialogState extends State<_SpecialBookingDialog> {
+  final TextEditingController tripNameController = TextEditingController();
+  final TextEditingController destinationController = TextEditingController();
+  LatLng? destinationCoordinate;
+  
+  DateTime? selectedDateTime;
+  
+  String? selectedBusId;
+  String? selectedBusName;
+
+  final List<TextEditingController> stopControllers = [];
+  final List<LatLng?> stopCoordinates = [];
+
+  bool isSaving = false;
+
+  Future<void> _pickDateTime() async {
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+    if (date == null) return;
+
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time == null) return;
+
+    if (mounted) {
+      setState(() {
+        selectedDateTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          time.minute,
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        "Special Trip Booking",
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 550,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: tripNameController,
+                decoration: const InputDecoration(
+                  labelText: "Trip Name (e.g. Museum Visit)",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              const Text("Schedule Time", style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: _pickDateTime,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: Color(0xFF095C42)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          selectedDateTime == null 
+                            ? "Select Date & Time" 
+                            : "${selectedDateTime!.day}/${selectedDateTime!.month}/${selectedDateTime!.year} at ${selectedDateTime!.hour.toString().padLeft(2, '0')}:${selectedDateTime!.minute.toString().padLeft(2, '0')}",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: selectedDateTime == null ? Colors.black54 : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              const Text("Select Bus", style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('Buses').snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const CircularProgressIndicator();
+                  return DropdownButtonFormField<String>(
+                    value: selectedBusId,
+                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                    items: snapshot.data!.docs.map((doc) {
+                      return DropdownMenuItem<String>(
+                        value: doc.id,
+                        child: Text(doc['busName']),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedBusId = value;
+                        selectedBusName = snapshot.data!.docs.firstWhere((doc) => doc.id == value)['busName'];
+                      });
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              const Text("Destination", style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: destinationController,
+                      decoration: InputDecoration(
+                        labelText: "Final Destination",
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: destinationCoordinate != null
+                            ? Colors.green.withOpacity(0.1)
+                            : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(
+                      destinationCoordinate != null ? Icons.map : Icons.add_location_alt_outlined,
+                      color: destinationCoordinate != null ? Colors.green : Colors.blue,
+                    ),
+                    onPressed: () async {
+                      final LatLng? result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MapPickerScreen(
+                            initialPosition: destinationCoordinate,
+                          ),
+                        ),
+                      );
+                      if (result != null) {
+                        setState(() {
+                          destinationCoordinate = result;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              const Text("Route / Waypoints (Optional)", style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ..._buildStopFields(),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text("Add Waypoint"),
+                onPressed: () {
+                  setState(() {
+                    stopControllers.add(TextEditingController());
+                    stopCoordinates.add(null);
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: isSaving ? null : _saveSpecialBooking,
+          child: const Text("Save Booking"),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildStopFields() {
+    return List.generate(stopControllers.length, (index) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: stopControllers[index],
+                decoration: InputDecoration(
+                  labelText: "Waypoint ${index + 1}",
+                  border: const OutlineInputBorder(),
+                  filled: true,
+                  fillColor: stopCoordinates[index] != null
+                      ? Colors.green.withOpacity(0.1)
+                      : null,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(
+                stopCoordinates[index] != null ? Icons.map : Icons.add_location_alt_outlined,
+                color: stopCoordinates[index] != null ? Colors.green : Colors.blue,
+              ),
+              onPressed: () async {
+                final LatLng? result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MapPickerScreen(
+                      initialPosition: stopCoordinates[index],
+                    ),
+                  ),
+                );
+                if (result != null) {
+                  setState(() {
+                    stopCoordinates[index] = result;
+                  });
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.remove_circle, color: Colors.red),
+              onPressed: () {
+                setState(() {
+                  stopControllers.removeAt(index);
+                  stopCoordinates.removeAt(index);
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Future<void> _saveSpecialBooking() async {
+    final tripName = tripNameController.text.trim();
+    final destinationName = destinationController.text.trim();
+
+    if (tripName.isEmpty || selectedBusId == null || destinationName.isEmpty || selectedDateTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill Trip Name, Date & Time, Bus, and Destination")),
+      );
+      return;
+    }
+
+    setState(() => isSaving = true);
+
+    List<Map<String, dynamic>> waypoints = [];
+    for (int i = 0; i < stopControllers.length; i++) {
+      final stopName = stopControllers[i].text.trim();
+      if (stopName.isNotEmpty) {
+        final coord = stopCoordinates[i];
+        waypoints.add({
+          'name': stopName,
+          'order': i + 1,
+          'lat': coord?.latitude,
+          'lng': coord?.longitude,
+        });
+      }
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('SpecialTrips').add({
+        'tripName': tripName,
+        'busId': selectedBusId,
+        'busName': selectedBusName,
+        'destinationName': destinationName,
+        'destinationLat': destinationCoordinate?.latitude,
+        'destinationLng': destinationCoordinate?.longitude,
+        'scheduledTime': selectedDateTime,
+        'waypoints': waypoints,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Special Trip booked successfully!")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("Error: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
   }
 }

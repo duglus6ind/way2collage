@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/screens/BusPassPayment.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:convert';
+// import 'package:firebase_storage/firebase_storage.dart';
 
 class StudentBusPassPage extends StatefulWidget {
   final String userId;
@@ -114,12 +115,10 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
         return;
       }
 
-      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${widget.userId}.jpg';
-      final Reference storageRef = FirebaseStorage.instance.ref().child('bus_pass_images/$fileName');
-      
-      final UploadTask uploadTask = storageRef.putFile(_selectedImage!);
-      final TaskSnapshot snapshot = await uploadTask;
-      final String imageUrl = await snapshot.ref.getDownloadURL();
+      // Convert image to Base64 string instead of uploading to Firebase Storage
+      final List<int> imageBytes = await _selectedImage!.readAsBytes();
+      final String base64Image = base64Encode(imageBytes);
+      final String imageUrl = 'data:image/jpeg;base64,$base64Image';
 
       final docRef = await FirebaseFirestore.instance.collection('bus_pass_applications').add({
         'userId': widget.userId,

@@ -119,21 +119,51 @@ class _AttendantMapState extends State<AttendantMap> {
     setState(() => _isFetchingRoute = true);
 
     try {
-      final busDoc = await FirebaseFirestore.instance
-          .collection('Buses')
-          .doc(busId)
+      bool isSpecial = false;
+      String? routeId;
+
+      final driverQuery = await FirebaseFirestore.instance
+          .collection('Users')
+          .where('Role', isEqualTo: 'Driver')
+          .where('AssignedBusId', isEqualTo: busId)
+          .limit(1)
           .get();
-      if (!busDoc.exists) return;
-      final routeId = busDoc.data()?['routeId'];
+
+      if (driverQuery.docs.isNotEmpty) {
+        final dData = driverQuery.docs.first.data();
+        isSpecial = dData['isSpecialTrip'] == true;
+        if (isSpecial) {
+           routeId = dData['AssignedRouteId'];
+        } else {
+           final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+           routeId = busDoc.data()?['routeId'] ?? dData['AssignedRouteId'];
+        }
+      } else {
+        final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+        if (busDoc.exists) routeId = busDoc.data()?['routeId'];
+      }
+
       if (routeId == null) return;
 
-      final routeDoc = await FirebaseFirestore.instance
-          .collection('Routes')
-          .doc(routeId)
-          .get();
+      final collectionName = isSpecial ? 'SpecialTrips' : 'Routes';
+      final routeDoc = await FirebaseFirestore.instance.collection(collectionName).doc(routeId).get();
       if (!routeDoc.exists) return;
 
-      final stops = routeDoc.data()?['Stops'] as List<dynamic>?;
+      List<dynamic>? stops;
+      if (isSpecial) {
+        stops = routeDoc.data()?['waypoints'] as List<dynamic>?;
+        final destName = routeDoc.data()?['destinationName'];
+        final destLat = routeDoc.data()?['destinationLat'];
+        final destLng = routeDoc.data()?['destinationLng'];
+        if (destName != null && destLat != null && destLng != null) {
+          stops = [
+            ...(stops ?? []),
+            {'name': destName, 'lat': destLat, 'lng': destLng, 'order': (stops?.length ?? 0) + 1}
+          ];
+        }
+      } else {
+        stops = routeDoc.data()?['Stops'] as List<dynamic>?;
+      }
       if (stops == null || stops.isEmpty) return;
 
       List<dynamic> waypoints = [];
@@ -145,10 +175,7 @@ class _AttendantMapState extends State<AttendantMap> {
         LatLng? pos;
 
         if (stop['lat'] != null && stop['lng'] != null) {
-          pos = LatLng(
-            (stop['lat'] as num).toDouble(),
-            (stop['lng'] as num).toDouble(),
-          );
+          pos = LatLng((stop['lat'] as num).toDouble(), (stop['lng'] as num).toDouble());
         }
 
         final isDestination = i == stops.length - 1;
@@ -173,11 +200,7 @@ class _AttendantMapState extends State<AttendantMap> {
         }
       }
 
-      if (mounted) {
-        setState(() {
-          _markers = stopMarkers;
-        });
-      }
+      if (mounted) setState(() => _markers = stopMarkers);
 
       while (_currentPosition == null) {
         await Future.delayed(const Duration(seconds: 1));
@@ -310,22 +333,9 @@ class _AttendantMapState extends State<AttendantMap> {
             Positioned(
               top: 16,
               left: 16,
-              right: 16,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _iconButton(
-                    icon: Icons.arrow_back,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  Row(
-                    children: [
-                      _iconButton(icon: Icons.notifications_none),
-                      const SizedBox(width: 12),
-                      _iconButton(icon: Icons.menu),
-                    ],
-                  ),
-                ],
+              child: _iconButton(
+                icon: Icons.arrow_back,
+                onTap: () => Navigator.pop(context),
               ),
             ),
 

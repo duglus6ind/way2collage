@@ -144,40 +144,81 @@ class AssignStaffScreen extends StatelessWidget {
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('Routes').snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox();
-        }
+      builder: (context, routeSnap) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('SpecialTrips').snapshots(),
+          builder: (context, tripSnap) {
+            if (!routeSnap.hasData || !tripSnap.hasData) {
+              return const SizedBox();
+            }
 
-        final routes = snapshot.data!.docs;
+            final routes = routeSnap.data!.docs;
+            final trips = tripSnap.data!.docs;
 
-        if (routes.isEmpty) {
-          return const Text("No routes available");
-        }
+            if (routes.isEmpty && trips.isEmpty) {
+              return const Text("No routes available");
+            }
 
-        final routeIds = routes.map((r) => r.id).toList();
+            // Create a combined list of DropdownMenuItem
+            List<DropdownMenuItem<String>> dropdownItems = [];
+            List<String> allIds = [];
 
-        final safeValue = routeIds.contains(assignedRouteId)
-            ? assignedRouteId
-            : null;
+            // Add Regular Routes
+            for (var route in routes) {
+              allIds.add(route.id);
+              dropdownItems.add(
+                DropdownMenuItem<String>(
+                  value: route.id,
+                  child: Text("Regular: ${route['Name']}"),
+                ),
+              );
+            }
 
-        return DropdownButtonFormField<String>(
-          value: safeValue,
-          decoration: const InputDecoration(
-            labelText: "Assign Route",
-            border: OutlineInputBorder(),
-          ),
-          items: routes.map((route) {
-            return DropdownMenuItem<String>(
-              value: route.id,
-              child: Text(route['Name'].toString()),
+            // Add Special Trips
+            for (var trip in trips) {
+              allIds.add(trip.id);
+              dropdownItems.add(
+                DropdownMenuItem<String>(
+                  value: trip.id,
+                  child: Text("Special: ${trip['tripName']}"),
+                ),
+              );
+            }
+
+            final safeValue = allIds.contains(assignedRouteId) ? assignedRouteId : null;
+
+            return DropdownButtonFormField<String>(
+              value: safeValue,
+              decoration: const InputDecoration(
+                labelText: "Assign Route/Trip",
+                border: OutlineInputBorder(),
+              ),
+              items: dropdownItems,
+              onChanged: (value) async {
+                if (value == null) return;
+                
+                // Determine if it's a special trip
+                final isSpecialTrip = trips.any((t) => t.id == value);
+                
+                Map<String, dynamic> updates = {
+                  'AssignedRouteId': value,
+                  'isSpecialTrip': isSpecialTrip,
+                };
+                
+                // If special trip, auto-assign the bus
+                if (isSpecialTrip) {
+                  final tripDoc = trips.firstWhere((t) => t.id == value);
+                  if (tripDoc['busId'] != null) {
+                    updates['AssignedBusId'] = tripDoc['busId'];
+                  }
+                }
+
+                await FirebaseFirestore.instance
+                    .collection('Users')
+                    .doc(userId)
+                    .update(updates);
+              },
             );
-          }).toList(),
-          onChanged: (value) async {
-            await FirebaseFirestore.instance
-                .collection('Users')
-                .doc(userId)
-                .update({'AssignedRouteId': value});
           },
         );
       },

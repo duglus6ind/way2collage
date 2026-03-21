@@ -108,19 +108,11 @@ class _StudentMapState extends State<StudentMap> {
                               );
                             }
 
-                            if (_assignedStopName != null) {
-                              // Throttle API requests to every 15 seconds
-                              if (_lastFetchTime == null ||
-                                  DateTime.now()
-                                          .difference(_lastFetchTime!)
-                                          .inSeconds >
-                                      15) {
-                                _resolveStopsAndFetchETA(
-                                  _currentPosition!,
-                                  _assignedStopName!,
-                                  busData['routeId'],
-                                );
-                              }
+                            // Periodic route update (every 15 seconds)
+                            if (_busId != null &&
+                                (_lastFetchTime == null ||
+                                    DateTime.now().difference(_lastFetchTime!).inSeconds > 15)) {
+                              _fetchRoutePath(_busId!);
                             }
                           }
                         }
@@ -132,92 +124,102 @@ class _StudentMapState extends State<StudentMap> {
         });
   }
 
-  Future<void> _resolveStopsAndFetchETA(
-    LatLng origin,
-    String targetStopName,
-    String? routeId,
-  ) async {
-    if (routeId == null) return;
-
-    List<LatLng> waypoints = [];
-    LatLng? destinationPoint;
-    Set<Marker> newMarkers = {};
-
-    try {
-      final routeDoc = await FirebaseFirestore.instance
-          .collection('Routes')
-          .doc(routeId)
-          .get();
-
-      if (routeDoc.exists) {
-        final stops = routeDoc.data()?['Stops'] as List<dynamic>?;
-        if (stops != null) {
-          bool foundTarget = false;
-          int targetIndex = -1;
-
-          // 1. Find the target stop's index
-          for (int i = 0; i < stops.length; i++) {
-            if (stops[i]['name'] == targetStopName) {
-              targetIndex = i;
-              break;
-            }
-          }
-
-          // 2. Process all stops in order
-          for (int i = 0; i < stops.length; i++) {
-            final stop = stops[i];
-            if (stop['lat'] != null && stop['lng'] != null) {
-              final pos = LatLng(
-                (stop['lat'] as num).toDouble(),
-                (stop['lng'] as num).toDouble(),
-              );
-
-              final isTarget = stop['name'] == targetStopName;
-              
-              // Add to global markers set
-              newMarkers.add(
-                Marker(
-                  markerId: MarkerId('stop_${i}_${stop['name']}'),
-                  position: pos,
-                  infoWindow: InfoWindow(title: stop['name']),
-                  icon: isTarget 
-                      ? (_stopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
-                      : (_intermediateStopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
-                ),
-              );
-
-              if (isTarget) {
-                destinationPoint = pos;
-                foundTarget = true;
-                if (mounted) setState(() {});
-              } else if (!foundTarget && targetIndex != -1) {
-                // If it's a stop BEFORE the target, it might be a waypoint
-                // Currently only adding waypoints that are ahead of the bus requires complex distance check.
-                // For simplicity, we add all stops between bus and target as waypoints.
-                // OSRM/GH handles the route sequence.
-                waypoints.add(pos);
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print("Error resolving stops for student: $e");
-    }
-
-    if (destinationPoint != null) {
-      if (mounted) setState(() => _stopMarkers = newMarkers);
-      _fetchETA(origin, destinationPoint, waypoints: waypoints);
-    }
-  }
-
-  Future<void> _fetchETA(LatLng origin, dynamic destination, {List<LatLng>? waypoints}) async {
+  Future<void> _fetchRoutePath(String busId) async {
     if (_isFetchingRoute) return;
     setState(() => _isFetchingRoute = true);
 
     try {
+      bool isSpecial = false;
+      String? routeId;
+
+      final driverQuery = await FirebaseFirestore.instance
+          .collection('Users')
+          .where('Role', isEqualTo: 'Driver')
+          .where('AssignedBusId', isEqualTo: busId)
+          .limit(1)
+          .get();
+
+      if (driverQuery.docs.isNotEmpty) {
+        final dData = driverQuery.docs.first.data();
+        isSpecial = dData['isSpecialTrip'] == true;
+        if (isSpecial) {
+           routeId = dData['AssignedRouteId'];
+        } else {
+           final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+           routeId = busDoc.data()?['routeId'] ?? dData['AssignedRouteId'];
+        }
+      } else {
+        final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+        if (busDoc.exists) routeId = busDoc.data()?['routeId'];
+      }
+
+      if (routeId == null) return;
+
+      final collectionName = isSpecial ? 'SpecialTrips' : 'Routes';
+      final routeDoc = await FirebaseFirestore.instance.collection(collectionName).doc(routeId).get();
+      if (!routeDoc.exists) return;
+
+      List<dynamic>? stops;
+      if (isSpecial) {
+        stops = routeDoc.data()?['waypoints'] as List<dynamic>?;
+        final destName = routeDoc.data()?['destinationName'];
+        final destLat = routeDoc.data()?['destinationLat'];
+        final destLng = routeDoc.data()?['destinationLng'];
+        if (destName != null && destLat != null && destLng != null) {
+          stops = [
+            ...(stops ?? []),
+            {'name': destName, 'lat': destLat, 'lng': destLng, 'order': (stops?.length ?? 0) + 1}
+          ];
+        }
+      } else {
+        stops = routeDoc.data()?['Stops'] as List<dynamic>?;
+      }
+      if (stops == null || stops.isEmpty) return;
+
+      List<dynamic> waypoints = [];
+      dynamic destination;
+      Set<Marker> newMarkers = {};
+
+      for (int i = 0; i < stops.length; i++) {
+        final stop = stops[i];
+        LatLng? pos;
+
+        if (stop['lat'] != null && stop['lng'] != null) {
+          pos = LatLng((stop['lat'] as num).toDouble(), (stop['lng'] as num).toDouble());
+        }
+
+        final isTarget = _assignedStopName != null && stop['name'] == _assignedStopName;
+        final isDestination = i == stops.length - 1;
+
+        if (pos != null) {
+          newMarkers.add(
+            Marker(
+              markerId: MarkerId('stop_${i}_${stop['name']}'),
+              position: pos,
+              infoWindow: InfoWindow(title: stop['name']),
+              icon: isTarget
+                  ? (_stopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
+                  : (_intermediateStopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
+            ),
+          );
+        }
+
+        if (isDestination) {
+          destination = pos ?? stop['name'].toString();
+        } else {
+          waypoints.add(pos ?? stop['name'].toString());
+        }
+      }
+
+      if (mounted) setState(() => _stopMarkers = newMarkers);
+
+      while (_currentPosition == null) {
+        await Future.delayed(const Duration(seconds: 1));
+        if (!mounted) return;
+      }
+
       final dirData = await DirectionsService.getDirections(
-        origin: origin,
+        origin: _currentPosition!,
         destination: destination,
         waypoints: waypoints,
       );
@@ -231,7 +233,7 @@ class _StudentMapState extends State<StudentMap> {
         });
       }
     } catch (e) {
-      print("Error fetching ETA: $e");
+      print("Error fetching route path: $e");
     } finally {
       if (mounted) setState(() => _isFetchingRoute = false);
     }
@@ -301,22 +303,9 @@ class _StudentMapState extends State<StudentMap> {
             Positioned(
               top: 16,
               left: 16,
-              right: 16,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _iconButton(
-                    icon: Icons.arrow_back,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  Row(
-                    children: [
-                      _iconButton(icon: Icons.notifications_none),
-                      const SizedBox(width: 12),
-                      _iconButton(icon: Icons.menu),
-                    ],
-                  ),
-                ],
+              child: _iconButton(
+                icon: Icons.arrow_back,
+                onTap: () => Navigator.pop(context),
               ),
             ),
 

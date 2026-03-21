@@ -143,22 +143,9 @@ class _SecretaryMapState extends State<SecretaryMap> {
             Positioned(
               top: 16,
               left: 16,
-              right: 16,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _iconButton(
-                    icon: Icons.arrow_back,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  Row(
-                    children: [
-                      _iconButton(icon: Icons.notifications_none),
-                      const SizedBox(width: 12),
-                      _iconButton(icon: Icons.menu),
-                    ],
-                  ),
-                ],
+              child: _iconButton(
+                icon: Icons.arrow_back,
+                onTap: () => Navigator.pop(context),
               ),
             ),
 

@@ -29,6 +29,7 @@ class DriverDashboard extends StatelessWidget {
             final userData = userSnap.data!.data() as Map<String, dynamic>;
             final busId = userData['AssignedBusId'];
             final routeId = userData['AssignedRouteId'];
+            final isSpecialTrip = userData['isSpecialTrip'] == true;
 
             if (busId == null || routeId == null) {
               return Column(
@@ -53,14 +54,30 @@ class DriverDashboard extends StatelessWidget {
 
                 return StreamBuilder<DocumentSnapshot>(
                   stream: FirebaseFirestore.instance
-                      .collection('Routes')
+                      .collection(isSpecialTrip ? 'SpecialTrips' : 'Routes')
                       .doc(routeId)
                       .snapshots(),
                   builder: (context, routeSnap) {
-                    if (!routeSnap.hasData) return const SizedBox();
-                    final routeData =
-                        routeSnap.data!.data() as Map<String, dynamic>;
-                    final stops = routeData['Stops'] as List<dynamic>?;
+                    if (!routeSnap.hasData || !routeSnap.data!.exists) return const SizedBox();
+                    
+                    final routeData = routeSnap.data!.data() as Map<String, dynamic>;
+                    final String displayRouteName = isSpecialTrip ? (routeData['tripName'] ?? "Special Trip") : (routeData['Name'] ?? "Unknown Route");
+                    
+                    List<dynamic>? stops;
+                    if (isSpecialTrip) {
+                      stops = routeData['waypoints'] as List<dynamic>?;
+                      final destName = routeData['destinationName'];
+                      final destLat = routeData['destinationLat'];
+                      final destLng = routeData['destinationLng'];
+                      if (destName != null && destLat != null && destLng != null) {
+                        stops = [
+                          ...(stops ?? []),
+                          {'name': destName, 'lat': destLat, 'lng': destLng}
+                        ];
+                      }
+                    } else {
+                      stops = routeData['Stops'] as List<dynamic>?;
+                    }
 
                     return Column(
                       children: [
@@ -69,11 +86,8 @@ class DriverDashboard extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: _busInfoUI(
-                            busName:
-                                busData['busName']?.toString() ?? "Unknown Bus",
-                            routeName:
-                                routeData['Name']?.toString() ??
-                                "Unknown Route",
+                            busName: busData['busName']?.toString() ?? "Unknown Bus",
+                            routeName: displayRouteName,
                           ),
                         ),
                         const SizedBox(height: 20),

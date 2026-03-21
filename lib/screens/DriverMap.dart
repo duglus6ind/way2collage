@@ -32,9 +32,21 @@ class _DriverMapState extends State<DriverMap> {
   bool _isTripStarted = false;
   DateTime? _lastRouteFetchTime;
   String? _assignedRouteId;
+  bool _isSpecialTrip = false;
   Set<Marker> _markers = {};
   BitmapDescriptor? _stopIcon;
   BitmapDescriptor? _destinationIcon;
+
+  // Next Stop Tracking
+  List<Map<String, dynamic>> _routeStops = [];
+  int _nextStopIndex = 0;
+  BitmapDescriptor? _nextStopIcon;
+  BitmapDescriptor? _passedStopIcon;
+
+  // Simulation variables
+  bool _isSimulating = false;
+  Timer? _simulationTimer;
+  int _simulationIndex = 0;
 
   @override
   void initState() {
@@ -46,8 +58,26 @@ class _DriverMapState extends State<DriverMap> {
   Future<void> _loadCustomMarker() async {
     try {
       _busIcon = await getMarkerIconFromData(Icons.directions_bus, Colors.blue);
-      _stopIcon = await getMarkerIconFromData(Icons.location_on, Colors.orange, size: 100);
-      _destinationIcon = await getMarkerIconFromData(Icons.location_on, Colors.red, size: 120);
+      _stopIcon = await getMarkerIconFromData(
+        Icons.location_on,
+        Colors.orange,
+        size: 100,
+      );
+      _destinationIcon = await getMarkerIconFromData(
+        Icons.location_on,
+        Colors.red,
+        size: 120,
+      );
+      _nextStopIcon = await getMarkerIconFromData(
+        Icons.location_on,
+        Colors.green,
+        size: 120,
+      );
+      _passedStopIcon = await getMarkerIconFromData(
+        Icons.location_on,
+        Colors.grey,
+        size: 80,
+      );
       if (mounted) setState(() {});
     } catch (e) {
       print("Error loading custom marker: $e");
@@ -67,6 +97,7 @@ class _DriverMapState extends State<DriverMap> {
               setState(() {
                 _busId = data['AssignedBusId'];
                 _assignedRouteId = data['AssignedRouteId'];
+                _isSpecialTrip = data['isSpecialTrip'] == true;
               });
               if (_busId != null) {
                 _fetchRoutePath(_busId!);
@@ -138,6 +169,7 @@ class _DriverMapState extends State<DriverMap> {
             setState(() {
               _currentPosition = LatLng(position.latitude, position.longitude);
             });
+            _checkNextStopReached(_currentPosition!);
             if (!isFirst) {
               _mapController?.animateCamera(
                 CameraUpdate.newLatLngZoom(_currentPosition!, 16.0),
@@ -148,16 +180,20 @@ class _DriverMapState extends State<DriverMap> {
           if (_busId != null) {
             // Update Firestore only if trip is started
             if (_isTripStarted) {
-              FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
-                'latitude': position.latitude,
-                'longitude': position.longitude,
-                'lastLocationUpdate': FieldValue.serverTimestamp(),
-              });
+              FirebaseFirestore.instance
+                  .collection('Buses')
+                  .doc(_busId)
+                  .update({
+                    'latitude': position.latitude,
+                    'longitude': position.longitude,
+                    'lastLocationUpdate': FieldValue.serverTimestamp(),
+                  });
             }
 
             // Periodic route update (every 30 seconds)
             if (_lastRouteFetchTime == null ||
-                DateTime.now().difference(_lastRouteFetchTime!).inSeconds > 30) {
+                DateTime.now().difference(_lastRouteFetchTime!).inSeconds >
+                    30) {
               _fetchRoutePath(_busId!);
             }
           }
@@ -173,37 +209,58 @@ class _DriverMapState extends State<DriverMap> {
           .collection('Buses')
           .doc(busId)
           .get();
-      
+
       String? routeId;
-      if (busDoc.exists) {
-        routeId = busDoc.data()?['routeId'];
+      if (_isSpecialTrip) {
+        routeId = _assignedRouteId;
+      } else {
+        if (busDoc.exists) {
+          routeId = busDoc.data()?['routeId'];
+        }
+        routeId ??= _assignedRouteId;
       }
-      
-      // Fallback to User's assigned route ID if bus doc doesn't have it
-      routeId ??= _assignedRouteId;
 
       if (routeId == null) {
-        print("DEBUG: No route ID found for bus $busId or driver ${widget.userId}");
+        print(
+          "DEBUG: No route ID found for bus $busId or driver ${widget.userId}",
+        );
         return;
       }
 
+      final collectionName = _isSpecialTrip ? 'SpecialTrips' : 'Routes';
       final routeDoc = await FirebaseFirestore.instance
-          .collection('Routes')
+          .collection(collectionName)
           .doc(routeId)
           .get();
+          
       if (!routeDoc.exists) {
-        print("DEBUG: Route doc $routeId NOT FOUND");
+        print("DEBUG: Route doc $routeId NOT FOUND in $collectionName");
         return;
       }
 
-      final stops = routeDoc.data()?['Stops'] as List<dynamic>?;
+      List<dynamic>? stops;
+      if (_isSpecialTrip) {
+        stops = routeDoc.data()?['waypoints'] as List<dynamic>?;
+        final destName = routeDoc.data()?['destinationName'];
+        final destLat = routeDoc.data()?['destinationLat'];
+        final destLng = routeDoc.data()?['destinationLng'];
+        if (destName != null && destLat != null && destLng != null) {
+          stops = [
+            ...(stops ?? []),
+            {'name': destName, 'lat': destLat, 'lng': destLng, 'order': (stops?.length ?? 0) + 1}
+          ];
+        }
+      } else {
+        stops = routeDoc.data()?['Stops'] as List<dynamic>?;
+      }
       if (stops == null || stops.isEmpty) return;
 
       List<dynamic> waypoints = [];
       dynamic destination;
-      Set<Marker> stopMarkers = {};
 
-      print("DEBUG: Processing ${stops.length} stops in order: ${stops.map((s) => s['name']).toList()}");
+      print(
+        "DEBUG: Processing ${stops.length} stops in order: ${stops.map((dynamic s) => (s as Map)['name']).toList()}",
+      );
 
       for (int i = 0; i < stops.length; i++) {
         final stop = stops[i];
@@ -217,22 +274,9 @@ class _DriverMapState extends State<DriverMap> {
         }
 
         final isDestination = i == stops.length - 1;
-        
-        if (pos != null) {
-          stopMarkers.add(
-            Marker(
-              markerId: MarkerId('stop_${i}_${stop['name']}'),
-              position: pos,
-              infoWindow: InfoWindow(title: stop['name']),
-              icon: isDestination 
-                  ? (_destinationIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
-                  : (_stopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
-            ),
-          );
-        }
 
         if (isDestination) {
-          destination = pos ?? stop['name'].toString(); 
+          destination = pos ?? stop['name'].toString();
         } else {
           waypoints.add(pos ?? stop['name'].toString());
         }
@@ -240,8 +284,11 @@ class _DriverMapState extends State<DriverMap> {
 
       if (mounted) {
         setState(() {
-          _markers = stopMarkers;
+          _routeStops = stops!
+              .map((s) => Map<String, dynamic>.from(s as Map))
+              .toList();
         });
+        _calculateInitialNextStop();
       }
 
       // If trip hasn't started, we only show markers, no polyline/ETA
@@ -267,7 +314,9 @@ class _DriverMapState extends State<DriverMap> {
           _polylineCoordinates = dirData['polylineCoordinates'];
           _lastRouteFetchTime = DateTime.now();
         });
-        print("DEBUG: Route fetched successfully. Polylines: ${_polylineCoordinates.length}");
+        print(
+          "DEBUG: Route fetched successfully. Polylines: ${_polylineCoordinates.length}",
+        );
       } else {
         print("DEBUG: DirectionsService returned NULL for routeId: $routeId");
       }
@@ -280,6 +329,7 @@ class _DriverMapState extends State<DriverMap> {
 
   @override
   void dispose() {
+    _simulationTimer?.cancel();
     _userSubscription?.cancel();
     _positionStream?.cancel();
     super.dispose();
@@ -305,7 +355,7 @@ class _DriverMapState extends State<DriverMap> {
                   _mapController = controller;
                 },
                 zoomControlsEnabled: false,
-                myLocationEnabled: true,
+                myLocationEnabled: false,
                 markers: {
                   if (_currentPosition != null)
                     Marker(
@@ -332,8 +382,12 @@ class _DriverMapState extends State<DriverMap> {
                     Polyline(
                       polylineId: const PolylineId('route_path'),
                       color: Colors.blueAccent,
-                      width: 5,
-                      points: _polylineCoordinates,
+                      width: 10,
+                      points: _isSimulating
+                          ? _polylineCoordinates.sublist(
+                              _simulationIndex > 0 ? _simulationIndex - 1 : 0,
+                            )
+                          : _polylineCoordinates,
                     ),
                 },
               ),
@@ -403,22 +457,9 @@ class _DriverMapState extends State<DriverMap> {
             Positioned(
               top: 16,
               left: 16,
-              right: 16,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _iconButton(
-                    icon: Icons.arrow_back,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  Row(
-                    children: [
-                      _iconButton(icon: Icons.notifications_none),
-                      const SizedBox(width: 12),
-                      _iconButton(icon: Icons.menu),
-                    ],
-                  ),
-                ],
+              child: _iconButton(
+                icon: Icons.arrow_back,
+                onTap: () => Navigator.pop(context),
               ),
             ),
 
@@ -435,45 +476,166 @@ class _DriverMapState extends State<DriverMap> {
               ),
             ),
 
+            // UPCOMING STOP BANNER
+            if (_isTripStarted &&
+                _routeStops.isNotEmpty &&
+                _nextStopIndex < _routeStops.length)
+              Positioned(
+                bottom: 90,
+                left: 20,
+                right: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade700,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              "UPCOMING STOP",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              _routeStops[_nextStopIndex]['name'].toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // START/END TRIP BOTTOM PANEL
             Positioned(
               bottom: 20,
               left: 20,
               right: 20,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isTripStarted
-                      ? Colors.red
-                      : const Color(0xFF095C42),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  elevation: 6,
-                ),
-                onPressed: _toggleTrip,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _isTripStarted
-                          ? Icons.stop_circle
-                          : Icons.play_circle_fill,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _isTripStarted ? "END TRIP" : "START TRIP",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
+              child: _isTripStarted
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              elevation: 6,
+                            ),
+                            onPressed: _toggleTrip,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.stop_circle, size: 24),
+                                SizedBox(width: 8),
+                                Text(
+                                  "END TRIP",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isSimulating
+                                  ? Colors.orange
+                                  : Colors.blueAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              elevation: 6,
+                            ),
+                            onPressed: _toggleSimulation,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isSimulating
+                                      ? Icons.pause_circle
+                                      : Icons.directions_bus,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _isSimulating ? "STOP SIM" : "SIMULATE",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF095C42),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        elevation: 6,
+                      ),
+                      onPressed: _toggleTrip,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.play_circle_fill, size: 28),
+                          SizedBox(width: 10),
+                          Text(
+                            "START TRIP",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -493,6 +655,7 @@ class _DriverMapState extends State<DriverMap> {
         }
       } else {
         // End Trip
+        _stopSimulation();
         _polylineCoordinates.clear();
         _distance = "";
         _duration = "";
@@ -506,6 +669,209 @@ class _DriverMapState extends State<DriverMap> {
         'longitude': _currentPosition!.longitude,
         'lastLocationUpdate': FieldValue.serverTimestamp(),
       });
+    }
+  }
+
+  // ---------------- SIMULATION LOGIC ----------------
+  void _toggleSimulation() {
+    if (_isSimulating) {
+      _stopSimulation();
+    } else {
+      _startSimulation();
+    }
+  }
+
+  void _startSimulation() {
+    if (_polylineCoordinates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Route path not fetched yet. Please wait."),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSimulating = true;
+      _simulationIndex = 0;
+    });
+
+    _positionStream?.pause();
+
+    _simulationTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_simulationIndex >= _polylineCoordinates.length) {
+        _stopSimulation();
+        return;
+      }
+
+      final nextPos = _polylineCoordinates[_simulationIndex];
+      setState(() {
+        _currentPosition = nextPos;
+        _updateSimulationETA();
+      });
+      _checkNextStopReached(nextPos);
+
+      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(nextPos, 16.0));
+
+      if (_busId != null && _isTripStarted) {
+        FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+          'latitude': nextPos.latitude,
+          'longitude': nextPos.longitude,
+          'lastLocationUpdate': FieldValue.serverTimestamp(),
+        });
+      }
+
+      _simulationIndex++;
+    });
+  }
+
+  void _stopSimulation() {
+    _simulationTimer?.cancel();
+    _simulationTimer = null;
+    if (mounted) {
+      setState(() {
+        _isSimulating = false;
+      });
+    }
+    _positionStream?.resume();
+  }
+
+  void _updateSimulationETA() {
+    if (_simulationIndex >= _polylineCoordinates.length - 1) {
+      _distance = "0 m";
+      _duration = "0 mins";
+      return;
+    }
+
+    double totalRemainingDistanceMeters = 0;
+    for (int i = _simulationIndex; i < _polylineCoordinates.length - 1; i++) {
+      totalRemainingDistanceMeters += Geolocator.distanceBetween(
+        _polylineCoordinates[i].latitude,
+        _polylineCoordinates[i].longitude,
+        _polylineCoordinates[i + 1].latitude,
+        _polylineCoordinates[i + 1].longitude,
+      );
+    }
+
+    if (totalRemainingDistanceMeters > 1000) {
+      _distance =
+          "${(totalRemainingDistanceMeters / 1000).toStringAsFixed(1)} km";
+    } else {
+      _distance = "${totalRemainingDistanceMeters.round()} m";
+    }
+
+    double mins = totalRemainingDistanceMeters / 667;
+    _duration = "${mins.round()} mins";
+  }
+
+  // ---------------- NEXT STOP TRACKING ----------------
+
+  void _updateMarkersHighlight() {
+    Set<Marker> updatedMarkers = {};
+    for (int i = 0; i < _routeStops.length; i++) {
+      final stop = _routeStops[i];
+      if (stop['lat'] == null || stop['lng'] == null) continue;
+
+      LatLng pos = LatLng(
+        (stop['lat'] as num).toDouble(),
+        (stop['lng'] as num).toDouble(),
+      );
+
+      final isDestination = i == _routeStops.length - 1;
+      BitmapDescriptor icon;
+
+      if (i < _nextStopIndex) {
+        icon =
+            _passedStopIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+      } else if (i == _nextStopIndex) {
+        icon =
+            _nextStopIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+      } else {
+        icon = isDestination
+            ? (_destinationIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ))
+            : (_stopIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueOrange,
+                  ));
+      }
+
+      updatedMarkers.add(
+        Marker(
+          markerId: MarkerId('stop_${i}_${stop['name']}'),
+          position: pos,
+          infoWindow: InfoWindow(title: stop['name']),
+          icon: icon,
+        ),
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        _markers = updatedMarkers;
+      });
+    }
+  }
+
+  void _calculateInitialNextStop() {
+    if (_routeStops.isEmpty) return;
+    if (_currentPosition == null) {
+      _nextStopIndex = 0;
+      _updateMarkersHighlight();
+      return;
+    }
+
+    double minDist = double.infinity;
+    int closestIndex = 0;
+
+    for (int i = 0; i < _routeStops.length; i++) {
+      final stop = _routeStops[i];
+      if (stop['lat'] != null && stop['lng'] != null) {
+        double d = Geolocator.distanceBetween(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          (stop['lat'] as num).toDouble(),
+          (stop['lng'] as num).toDouble(),
+        );
+        if (d < minDist) {
+          minDist = d;
+          closestIndex = i;
+        }
+      }
+    }
+
+    if (minDist < 100.0 && closestIndex < _routeStops.length - 1) {
+      _nextStopIndex = closestIndex + 1;
+    } else {
+      _nextStopIndex = closestIndex;
+    }
+    _updateMarkersHighlight();
+  }
+
+  void _checkNextStopReached(LatLng pos) {
+    if (_routeStops.isEmpty || _nextStopIndex >= _routeStops.length) return;
+    final nextStop = _routeStops[_nextStopIndex];
+    if (nextStop['lat'] != null && nextStop['lng'] != null) {
+      double dist = Geolocator.distanceBetween(
+        pos.latitude,
+        pos.longitude,
+        (nextStop['lat'] as num).toDouble(),
+        (nextStop['lng'] as num).toDouble(),
+      );
+      if (dist < 100.0) {
+        if (_nextStopIndex < _routeStops.length - 1) {
+          if (mounted) {
+            setState(() {
+              _nextStopIndex++;
+            });
+          }
+          _updateMarkersHighlight();
+        }
+      }
     }
   }
 
