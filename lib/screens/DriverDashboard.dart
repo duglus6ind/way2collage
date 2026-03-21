@@ -31,15 +31,64 @@ class DriverDashboard extends StatelessWidget {
             final routeId = userData['AssignedRouteId'];
             final isSpecialTrip = userData['isSpecialTrip'] == true;
 
-            if (busId == null || routeId == null) {
+            Widget buildDashboardContent(String busName, String routeName, List<dynamic>? stops) {
               return Column(
                 children: [
                   _topBar(context),
+                  const SizedBox(height: 12),
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _emptyBusCard(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _busInfoUI(
+                      busName: busName,
+                      routeName: routeName,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        _actionCard(
+                          icon: Icons.warning,
+                          text: "Emergency",
+                          color: const Color(0xFF8E8BC7),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const DriverEmergencyList(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        _actionCard(
+                          icon: Icons.map,
+                          text: "Route Details",
+                          color: const Color(0xFF8E8BC7),
+                          onTap: () => _showStopsPopUp(context, stops),
+                        ),
+                        const SizedBox(height: 12),
+                        _actionCard(
+                          icon: Icons.report_problem,
+                          text: "Report Issue",
+                          color: const Color(0xFF8E8BC7),
+                          onTap: () {
+                            // Report issue
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
+              );
+            }
+
+            if (busId == null) {
+              return buildDashboardContent(
+                "No Bus Assigned",
+                "No routes",
+                null,
               );
             }
 
@@ -49,8 +98,21 @@ class DriverDashboard extends StatelessWidget {
                   .doc(busId)
                   .snapshots(),
               builder: (context, busSnap) {
-                if (!busSnap.hasData) return const SizedBox();
-                final busData = busSnap.data!.data() as Map<String, dynamic>;
+                if (!busSnap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                final String busName;
+                if (!busSnap.data!.exists) {
+                  busName = "Assigned bus not found";
+                } else {
+                  final busData = busSnap.data!.data() as Map<String, dynamic>;
+                  busName = busData['busName']?.toString() ?? "Unknown Bus";
+                }
+
+                if (routeId == null) {
+                  return buildDashboardContent(busName, "No routes", null);
+                }
 
                 return StreamBuilder<DocumentSnapshot>(
                   stream: FirebaseFirestore.instance
@@ -58,78 +120,34 @@ class DriverDashboard extends StatelessWidget {
                       .doc(routeId)
                       .snapshots(),
                   builder: (context, routeSnap) {
-                    if (!routeSnap.hasData || !routeSnap.data!.exists) return const SizedBox();
+                    if (!routeSnap.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
                     
-                    final routeData = routeSnap.data!.data() as Map<String, dynamic>;
-                    final String displayRouteName = isSpecialTrip ? (routeData['tripName'] ?? "Special Trip") : (routeData['Name'] ?? "Unknown Route");
-                    
+                    String displayRouteName = "No routes";
                     List<dynamic>? stops;
-                    if (isSpecialTrip) {
-                      stops = routeData['waypoints'] as List<dynamic>?;
-                      final destName = routeData['destinationName'];
-                      final destLat = routeData['destinationLat'];
-                      final destLng = routeData['destinationLng'];
-                      if (destName != null && destLat != null && destLng != null) {
-                        stops = [
-                          ...(stops ?? []),
-                          {'name': destName, 'lat': destLat, 'lng': destLng}
-                        ];
+
+                    if (routeSnap.data!.exists) {
+                      final routeData = routeSnap.data!.data() as Map<String, dynamic>;
+                      displayRouteName = isSpecialTrip ? (routeData['tripName'] ?? "Special Trip") : (routeData['Name'] ?? "Unknown Route");
+                      
+                      if (isSpecialTrip) {
+                        stops = routeData['waypoints'] as List<dynamic>?;
+                        final destName = routeData['destinationName'];
+                        final destLat = routeData['destinationLat'];
+                        final destLng = routeData['destinationLng'];
+                        if (destName != null && destLat != null && destLng != null) {
+                          stops = [
+                            ...(stops ?? []),
+                            {'name': destName, 'lat': destLat, 'lng': destLng}
+                          ];
+                        }
+                      } else {
+                        stops = routeData['Stops'] as List<dynamic>?;
                       }
-                    } else {
-                      stops = routeData['Stops'] as List<dynamic>?;
                     }
 
-                    return Column(
-                      children: [
-                        _topBar(context),
-                        const SizedBox(height: 12),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: _busInfoUI(
-                            busName: busData['busName']?.toString() ?? "Unknown Bus",
-                            routeName: displayRouteName,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            children: [
-                              _actionCard(
-                                icon: Icons.warning,
-                                text: "Emergency",
-                                color: const Color(0xFF8E8BC7),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const DriverEmergencyList(),
-                                    ),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              _actionCard(
-                                icon: Icons.map,
-                                text: "Route Details",
-                                color: const Color(0xFF8E8BC7),
-                                onTap: () => _showStopsPopUp(context, stops),
-                              ),
-                              const SizedBox(height: 12),
-                              _actionCard(
-                                icon: Icons.report_problem,
-                                text: "Report Issue",
-                                color: const Color(0xFF8E8BC7),
-                                onTap: () {
-                                  // Report issue
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
+                    return buildDashboardContent(busName, displayRouteName, stops);
                   },
                 );
               },
@@ -310,19 +328,7 @@ class DriverDashboard extends StatelessWidget {
     );
   }
 
-  Widget _emptyBusCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF095C42),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: const Text(
-        "No bus assigned yet",
-        style: TextStyle(color: Colors.white),
-      ),
-    );
-  }
+
 
   // ---------------- UI HELPERS ----------------
 
