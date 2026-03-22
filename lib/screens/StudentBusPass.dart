@@ -17,6 +17,8 @@ class StudentBusPassPage extends StatefulWidget {
 class _StudentBusPassPageState extends State<StudentBusPassPage> {
   final _nameController = TextEditingController();
   final _admissionController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   String? _selectedDepartment;
   String? _selectedSemester;
   File? _selectedImage;
@@ -25,10 +27,11 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
 
   String? _nameError;
   String? _admissionError;
+  String? _phoneError;
+  String? _emailError;
   String? _departmentError;
   String? _semesterError;
   String? _imageError;
-
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -54,6 +57,8 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
     setState(() {
       _nameError = _nameController.text.trim().isEmpty ? "This field can't be empty" : null;
       _admissionError = _admissionController.text.trim().isEmpty ? "This field can't be empty" : null;
+      _phoneError = _phoneController.text.trim().length != 10 ? "Enter a valid 10-digit phone number" : null;
+      _emailError = !_emailController.text.trim().contains('@') ? "Enter a valid email address" : null;
       _departmentError = _selectedDepartment == null ? "Please select a department" : null;
       _semesterError = _selectedSemester == null ? "Please select a semester" : null;
       _imageError = _selectedImage == null ? "Please upload an image" : null;
@@ -61,6 +66,8 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
 
     if (_nameError != null ||
         _admissionError != null ||
+        _phoneError != null ||
+        _emailError != null ||
         _departmentError != null ||
         _semesterError != null ||
         _imageError != null) {
@@ -124,6 +131,8 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
         'userId': widget.userId,
         'name': _nameController.text.trim(),
         'admissionNumber': _admissionController.text.trim(),
+        'phoneNumber': _phoneController.text.trim(),
+        'email': _emailController.text.trim(),
         'department': _selectedDepartment,
         'semester': _selectedSemester,
         'imageUrl': imageUrl,
@@ -134,6 +143,8 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
 
       _nameController.clear();
       _admissionController.clear();
+      _phoneController.clear();
+      _emailController.clear();
       setState(() {
         _selectedDepartment = null;
         _selectedSemester = null;
@@ -151,6 +162,8 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
           builder: (context) => BusPassPaymentScreen(
             userId: widget.userId,
             applicationId: docRef.id,
+            phone: _phoneController.text.trim(),
+            email: _emailController.text.trim(),
           ),
         ),
       );
@@ -165,6 +178,8 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
   void dispose() {
     _nameController.dispose();
     _admissionController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -233,6 +248,28 @@ class _StudentBusPassPageState extends State<StudentBusPassPage> {
                         onChanged: (val) {
                           if (_admissionError != null) {
                             setState(() => _admissionError = null);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _inputField(
+                        controller: _phoneController,
+                        hint: "Phone Number",
+                        errorText: _phoneError,
+                        onChanged: (val) {
+                          if (_phoneError != null) {
+                            setState(() => _phoneError = null);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _inputField(
+                        controller: _emailController,
+                        hint: "Email ID",
+                        errorText: _emailError,
+                        onChanged: (val) {
+                          if (_emailError != null) {
+                            setState(() => _emailError = null);
                           }
                         },
                       ),

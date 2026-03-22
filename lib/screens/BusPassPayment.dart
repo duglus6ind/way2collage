@@ -6,11 +6,15 @@ import 'package:bus_tracker/screens/PaymentSuccessScreen.dart';
 class BusPassPaymentScreen extends StatefulWidget {
   final String userId;
   final String applicationId;
+  final String phone;
+  final String email;
 
   const BusPassPaymentScreen({
     super.key,
     required this.userId,
     required this.applicationId,
+    required this.phone,
+    required this.email,
   });
 
   @override
@@ -91,8 +95,8 @@ class _BusPassPaymentScreenState extends State<BusPassPaymentScreen> {
       'name': 'Way2College',
       'description': 'Student Bus Pass',
       'prefill': {
-        'contact': '',
-        'email': ''
+        'contact': widget.phone,
+        'email': widget.email
       }
     };
 
