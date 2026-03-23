@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
 import 'package:bus_tracker/services/directions_service.dart';
 
 class StudentMap extends StatefulWidget {
@@ -44,8 +45,16 @@ class _StudentMapState extends State<StudentMap> {
   Future<void> _loadCustomMarker() async {
     try {
       _busIcon = await getMarkerIconFromData(Icons.directions_bus, Colors.blue);
-      _stopIcon = await getMarkerIconFromData(Icons.location_on, Colors.red, size: 120);
-      _intermediateStopIcon = await getMarkerIconFromData(Icons.location_on, Colors.orange, size: 80);
+      _stopIcon = await getMarkerIconFromData(
+        Icons.location_on,
+        Colors.red,
+        size: 120,
+      );
+      _intermediateStopIcon = await getMarkerIconFromData(
+        Icons.location_on,
+        Colors.orange,
+        size: 80,
+      );
       if (mounted) setState(() {});
     } catch (e) {
       print("Error loading custom marker: $e");
@@ -111,7 +120,10 @@ class _StudentMapState extends State<StudentMap> {
                             // Periodic route update (every 15 seconds)
                             if (_busId != null &&
                                 (_lastFetchTime == null ||
-                                    DateTime.now().difference(_lastFetchTime!).inSeconds > 15)) {
+                                    DateTime.now()
+                                            .difference(_lastFetchTime!)
+                                            .inSeconds >
+                                        15)) {
                               _fetchRoutePath(_busId!);
                             }
                           }
@@ -143,20 +155,29 @@ class _StudentMapState extends State<StudentMap> {
         final dData = driverQuery.docs.first.data();
         isSpecial = dData['isSpecialTrip'] == true;
         if (isSpecial) {
-           routeId = dData['AssignedRouteId'];
+          routeId = dData['AssignedRouteId'];
         } else {
-           final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
-           routeId = busDoc.data()?['routeId'] ?? dData['AssignedRouteId'];
+          final busDoc = await FirebaseFirestore.instance
+              .collection('Buses')
+              .doc(busId)
+              .get();
+          routeId = busDoc.data()?['routeId'] ?? dData['AssignedRouteId'];
         }
       } else {
-        final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+        final busDoc = await FirebaseFirestore.instance
+            .collection('Buses')
+            .doc(busId)
+            .get();
         if (busDoc.exists) routeId = busDoc.data()?['routeId'];
       }
 
       if (routeId == null) return;
 
       final collectionName = isSpecial ? 'SpecialTrips' : 'Routes';
-      final routeDoc = await FirebaseFirestore.instance.collection(collectionName).doc(routeId).get();
+      final routeDoc = await FirebaseFirestore.instance
+          .collection(collectionName)
+          .doc(routeId)
+          .get();
       if (!routeDoc.exists) return;
 
       List<dynamic>? stops;
@@ -168,7 +189,12 @@ class _StudentMapState extends State<StudentMap> {
         if (destName != null && destLat != null && destLng != null) {
           stops = [
             ...(stops ?? []),
-            {'name': destName, 'lat': destLat, 'lng': destLng, 'order': (stops?.length ?? 0) + 1}
+            {
+              'name': destName,
+              'lat': destLat,
+              'lng': destLng,
+              'order': (stops?.length ?? 0) + 1,
+            },
           ];
         }
       } else {
@@ -185,10 +211,14 @@ class _StudentMapState extends State<StudentMap> {
         LatLng? pos;
 
         if (stop['lat'] != null && stop['lng'] != null) {
-          pos = LatLng((stop['lat'] as num).toDouble(), (stop['lng'] as num).toDouble());
+          pos = LatLng(
+            (stop['lat'] as num).toDouble(),
+            (stop['lng'] as num).toDouble(),
+          );
         }
 
-        final isTarget = _assignedStopName != null && stop['name'] == _assignedStopName;
+        final isTarget =
+            _assignedStopName != null && stop['name'] == _assignedStopName;
         final isDestination = i == stops.length - 1;
 
         if (pos != null) {
@@ -197,9 +227,16 @@ class _StudentMapState extends State<StudentMap> {
               markerId: MarkerId('stop_${i}_${stop['name']}'),
               position: pos,
               infoWindow: InfoWindow(title: stop['name']),
+              zIndex: 1.0,
               icon: isTarget
-                  ? (_stopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
-                  : (_intermediateStopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
+                  ? (_stopIcon ??
+                        BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueRed,
+                        ))
+                  : (_intermediateStopIcon ??
+                        BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueOrange,
+                        )),
             ),
           );
         }
@@ -271,6 +308,7 @@ class _StudentMapState extends State<StudentMap> {
                     Marker(
                       markerId: const MarkerId('busPosition'),
                       position: _currentPosition!,
+                      zIndex: 2.0,
                       icon:
                           _busIcon ??
                           BitmapDescriptor.defaultMarkerWithHue(
@@ -282,6 +320,7 @@ class _StudentMapState extends State<StudentMap> {
                     Marker(
                       markerId: const MarkerId('schoolPosition'),
                       position: const LatLng(9.847694, 76.942194),
+                      zIndex: 1.0,
                       icon: BitmapDescriptor.defaultMarkerWithHue(
                         BitmapDescriptor.hueRed,
                       ),
@@ -292,7 +331,8 @@ class _StudentMapState extends State<StudentMap> {
                     Polyline(
                       polylineId: const PolylineId('route_path'),
                       color: Colors.blueAccent,
-                      width: 5,
+                      width: 10,
+                      zIndex: 0,
                       points: _polylineCoordinates,
                     ),
                 },
@@ -310,16 +350,11 @@ class _StudentMapState extends State<StudentMap> {
             ),
 
             // BUS STATUS CARD
-            Positioned(
-              top: 90, 
-              left: 16, 
-              right: 16, 
-              child: _busStatusCard(),
-            ),
+            Positioned(top: 90, left: 16, right: 16, child: _busStatusCard()),
 
             // CHECK SEATS BUTTON
             Positioned(
-              bottom: 24,
+              bottom: 100,
               right: 24,
               child: GestureDetector(
                 onTap: () {
@@ -356,6 +391,14 @@ class _StudentMapState extends State<StudentMap> {
                   ),
                 ),
               ),
+            ),
+
+            // BOTTOM NAV
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNav(userId: widget.userId, activeTab: NavTab.map),
             ),
           ],
         ),
@@ -427,7 +470,7 @@ class _StudentMapState extends State<StudentMap> {
             final String footerText = lastUpdated != null
                 ? "Last updated: ${_formatTime(lastUpdated)}"
                 : "";
-            
+
             // ETA Logic
             String? etaInfo;
             String? etaUpdatedTime;
@@ -534,7 +577,9 @@ class _StudentMapState extends State<StudentMap> {
           // 🔹 Left Color Indicator Bar
           Container(
             width: 6,
-            height: (etaText != null) ? (etaUpdatedTime != null ? 160 : 140) : 100, // Dynamic height
+            height: (etaText != null)
+                ? (etaUpdatedTime != null ? 160 : 140)
+                : 100, // Dynamic height
             decoration: BoxDecoration(
               color: titleColor,
               borderRadius: const BorderRadius.only(
@@ -593,7 +638,10 @@ class _StudentMapState extends State<StudentMap> {
                   if (etaText != null) ...[
                     const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),

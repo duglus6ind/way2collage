@@ -1,8 +1,7 @@
 import 'package:bus_tracker/screens/AssignBus.dart';
 import 'package:bus_tracker/screens/AssignRole.dart';
-import 'package:bus_tracker/screens/ProfilePage.dart';
-import 'package:bus_tracker/screens/SecretaryMap.dart';
 import 'package:bus_tracker/screens/SecretaryEmergencyList.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
 import 'package:bus_tracker/screens/BusPassApplicationsScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/screens/UserManagement.dart';
@@ -26,33 +25,35 @@ class BusSecretaryDashboard extends StatelessWidget {
           child: Stack(
             children: [
               // TOP BAR ICONS
-              Positioned(
-                top: 60,
-                left: 22,
-                child: NotificationBell(userId: userId),
-              ),
+              Positioned(top: 60, left: 22, child: _topChip("Way2College")),
               Positioned(
                 top: 60,
                 right: 22,
-                child: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'logout') {
-                      _showLogoutDialog(context);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, color: Colors.red),
-                          SizedBox(width: 10),
-                          Text("Logout"),
-                        ],
-                      ),
+                child: Row(
+                  children: [
+                    NotificationBell(userId: userId),
+                    const SizedBox(width: 12),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'logout') {
+                          _showLogoutDialog(context);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'logout',
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout, color: Colors.red),
+                              SizedBox(width: 10),
+                              Text("Logout"),
+                            ],
+                          ),
+                        ),
+                      ],
+                      child: _iconBox(Icons.menu),
                     ),
                   ],
-                  child: _iconBox(Icons.menu),
                 ),
               ),
               // ASSIGN BUS / ROLE CARD
@@ -108,7 +109,8 @@ class BusSecretaryDashboard extends StatelessWidget {
 
               // USER MANAGEMENT BUTTON
               Positioned(
-                top: 510, // Shifted down by 95px to accommodate the new tile in the green card
+                top:
+                    510, // Shifted down by 95px to accommodate the new tile in the green card
                 left: 45,
                 right: 45,
                 child: GestureDetector(
@@ -177,114 +179,25 @@ class BusSecretaryDashboard extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: SizedBox(
-        height: 100,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            // Black rounded navigation bar
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              height: 70,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 6,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
-
-            // Left button - Bus Route (white background)
-            Positioned(
-              left: 60,
-              bottom: 28,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SecretaryMap(userId: userId),
-                    ),
-                  );
-                },
-                child: _navIcon(Icons.directions_bus),
-              ),
-            ),
-
-            // Right button - Profile (white background)
-            Positioned(
-              right: 55,
-              bottom: 28,
-              child: Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProfilePage(userId: userId),
-                      ),
-                    );
-                  },
-                  child: const Icon(Icons.person, color: Colors.black),
-                ),
-              ),
-            ),
-
-            // Center Home button (black + white border)
-            Positioned(
-              bottom: 22,
-              child: Container(
-                padding: const EdgeInsets.all(6), // white border thickness
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black38,
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.home),
-                    color: Colors.white,
-                    iconSize: 32,
-                    onPressed: () {
-                      // Already on Home
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      bottomNavigationBar: CustomBottomNav(
+        userId: userId,
+        activeTab: NavTab.home,
       ),
+    );
+  }
+
+  // TOP CHIP
+  Widget _topChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(1, 4)),
+        ],
+      ),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 
@@ -408,18 +321,6 @@ class BusSecretaryDashboard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _navIcon(IconData icon) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-      ),
-      child: Icon(icon, color: Colors.black),
     );
   }
 }

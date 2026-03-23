@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
 import 'package:bus_tracker/services/directions_service.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
 
 class DriverMap extends StatefulWidget {
   final String userId;
@@ -535,11 +536,19 @@ class _DriverMapState extends State<DriverMap> {
                 ),
               ),
 
-            // START/END TRIP BOTTOM PANEL
+            // BOTTOM NAV
             Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNav(userId: widget.userId, activeTab: NavTab.map),
+            ),
+
+            // TRIP CONTROL BUTTONS
+            Positioned(
+              bottom: 100,
+              left: 24,
+              right: 24,
               child: _isTripStarted
                   ? Row(
                       children: [
@@ -636,6 +645,14 @@ class _DriverMapState extends State<DriverMap> {
                         ],
                       ),
                     ),
+            ),
+
+            // BOTTOM NAV
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNav(userId: widget.userId, activeTab: NavTab.map),
             ),
           ],
         ),

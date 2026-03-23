@@ -6,6 +6,7 @@ import 'package:bus_tracker/services/notification_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
 import 'package:bus_tracker/services/directions_service.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
 
 class AttendantMap extends StatefulWidget {
   final String userId;
@@ -352,9 +353,10 @@ class _AttendantMapState extends State<AttendantMap> {
               ),
             ),
 
+
             // TRACK SEATS BUTTON
             Positioned(
-              bottom: 24,
+              bottom: 100,
               right: 24,
               child: GestureDetector(
                 onTap: () => _openSeatLayout(context),
@@ -386,6 +388,14 @@ class _AttendantMapState extends State<AttendantMap> {
                   ),
                 ),
               ),
+            ),
+
+            // BOTTOM NAV
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNav(userId: widget.userId, activeTab: NavTab.map),
             ),
           ],
         ),
