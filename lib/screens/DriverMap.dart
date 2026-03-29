@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/services/notification_service.dart';
@@ -7,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
 import 'package:bus_tracker/services/directions_service.dart';
 import 'package:bus_tracker/widgets/CustomBottomNav.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class DriverMap extends StatefulWidget {
   final String userId;
@@ -169,6 +171,35 @@ class _DriverMapState extends State<DriverMap> {
             bool isFirst = _currentPosition == null;
             setState(() {
               _currentPosition = LatLng(position.latitude, position.longitude);
+
+              if (_isTripStarted && !_isSimulating && _polylineCoordinates.isNotEmpty) {
+                double minDistance = double.infinity;
+                int closestIndex = 0;
+                int checkLimit = _polylineCoordinates.length < 50 ? _polylineCoordinates.length : 50;
+
+                for (int i = 0; i < checkLimit; i++) {
+                  double lat1 = _currentPosition!.latitude;
+                  double lon1 = _currentPosition!.longitude;
+                  double lat2 = _polylineCoordinates[i].latitude;
+                  double lon2 = _polylineCoordinates[i].longitude;
+                  
+                  var p = 0.017453292519943295; // Math.PI / 180
+                  var a = 0.5 - math.cos((lat2 - lat1) * p)/2 + 
+                          math.cos(lat1 * p) * math.cos(lat2 * p) * 
+                          (1 - math.cos((lon2 - lon1) * p))/2;
+                  var dist = 12742 * math.asin(math.sqrt(a));
+                  
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    closestIndex = i;
+                  }
+                }
+                
+                if (closestIndex > 0) {
+                  _polylineCoordinates.removeRange(0, closestIndex);
+                }
+                _polylineCoordinates[0] = _currentPosition!;
+              }
             });
             _checkNextStopReached(_currentPosition!);
             if (!isFirst) {
@@ -312,7 +343,7 @@ class _DriverMapState extends State<DriverMap> {
         setState(() {
           _distance = dirData['distance'];
           _duration = dirData['duration'];
-          _polylineCoordinates = dirData['polylineCoordinates'];
+          _polylineCoordinates = List<LatLng>.from(dirData['polylineCoordinates']);
           _lastRouteFetchTime = DateTime.now();
         });
         print(
@@ -456,12 +487,9 @@ class _DriverMapState extends State<DriverMap> {
 
             // TOP BAR
             Positioned(
-              top: 16,
-              left: 16,
-              child: _iconButton(
-                icon: Icons.arrow_back,
-                onTap: () => Navigator.pop(context),
-              ),
+              top: 8,
+              left: 8,
+              child: const CustomBackButton(),
             ),
 
             // BUS STATUS UPDATE CHIP
@@ -482,7 +510,7 @@ class _DriverMapState extends State<DriverMap> {
                 _routeStops.isNotEmpty &&
                 _nextStopIndex < _routeStops.length)
               Positioned(
-                bottom: 90,
+                bottom: 180,
                 left: 20,
                 right: 20,
                 child: Container(
@@ -679,13 +707,21 @@ class _DriverMapState extends State<DriverMap> {
       }
     });
 
-    if (_isTripStarted && _busId != null && _currentPosition != null) {
-      // Immediately push first coordinate to wake up student apps
-      FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
-        'latitude': _currentPosition!.latitude,
-        'longitude': _currentPosition!.longitude,
-        'lastLocationUpdate': FieldValue.serverTimestamp(),
-      });
+    if (_busId != null) {
+      if (_isTripStarted && _currentPosition != null) {
+        // Immediately push first coordinate to wake up student apps
+        FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+          'latitude': _currentPosition!.latitude,
+          'longitude': _currentPosition!.longitude,
+          'lastLocationUpdate': FieldValue.serverTimestamp(),
+          'tripActive': true,
+          'passedStops': [],
+        });
+      } else if (!_isTripStarted) {
+        FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+          'tripActive': false,
+        });
+      }
     }
   }
 
@@ -880,6 +916,11 @@ class _DriverMapState extends State<DriverMap> {
         (nextStop['lng'] as num).toDouble(),
       );
       if (dist < 100.0) {
+        if (_busId != null && _isTripStarted) {
+          FirebaseFirestore.instance.collection('Buses').doc(_busId).update({
+            'passedStops': FieldValue.arrayUnion([nextStop['name']])
+          });
+        }
         if (_nextStopIndex < _routeStops.length - 1) {
           if (mounted) {
             setState(() {
@@ -1168,19 +1209,4 @@ class _DriverMapState extends State<DriverMap> {
     }
   }
 
-  Widget _iconButton({required IconData icon, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-        ),
-        child: Icon(icon, color: Colors.black),
-      ),
-    );
-  }
 }

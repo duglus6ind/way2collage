@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class BusPassVerificationScreen extends StatefulWidget {
   const BusPassVerificationScreen({super.key});
@@ -39,10 +40,7 @@ class _BusPassVerificationScreenState extends State<BusPassVerificationScreen> {
         ),
         backgroundColor: const Color(0xFF095C42),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const CustomBackButton(),
       ),
       body: Column(
         children: [
@@ -86,7 +84,15 @@ class _BusPassVerificationScreenState extends State<BusPassVerificationScreen> {
                   final data = doc.data() as Map<String, dynamic>;
                   final name = data['Name'].toString().toLowerCase();
                   final userId = data['UserId'].toString().toLowerCase();
-                  return name.contains(_searchQuery) || userId.contains(_searchQuery);
+                  final passStatus = data['BusPassStatus']?.toString().toUpperCase() ?? '';
+                  
+                  // Filter by search query
+                  final matchesSearch = name.contains(_searchQuery) || userId.contains(_searchQuery);
+                  
+                  // Filter by approval status
+                  final isApproved = passStatus == 'APPROVED';
+                  
+                  return matchesSearch && isApproved;
                 }).toList();
 
                 if (docs.isEmpty) {

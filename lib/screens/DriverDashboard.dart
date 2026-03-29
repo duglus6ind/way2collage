@@ -30,17 +30,18 @@ class DriverDashboard extends StatelessWidget {
             final routeId = userData['AssignedRouteId'];
             final isSpecialTrip = userData['isSpecialTrip'] == true;
 
-            Widget buildDashboardContent(String busName, String routeName, List<dynamic>? stops) {
+            Widget buildDashboardContent(
+              String busName,
+              String routeName,
+              List<dynamic>? stops,
+            ) {
               return Column(
                 children: [
                   _topBar(context),
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _busInfoUI(
-                      busName: busName,
-                      routeName: routeName,
-                    ),
+                    child: _busInfoUI(busName: busName, routeName: routeName),
                   ),
                   const SizedBox(height: 20),
                   Padding(
@@ -100,7 +101,7 @@ class DriverDashboard extends StatelessWidget {
                 if (!busSnap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                
+
                 final String busName;
                 if (!busSnap.data!.exists) {
                   busName = "Assigned bus not found";
@@ -122,23 +123,28 @@ class DriverDashboard extends StatelessWidget {
                     if (!routeSnap.hasData) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    
+
                     String displayRouteName = "No routes";
                     List<dynamic>? stops;
 
                     if (routeSnap.data!.exists) {
-                      final routeData = routeSnap.data!.data() as Map<String, dynamic>;
-                      displayRouteName = isSpecialTrip ? (routeData['tripName'] ?? "Special Trip") : (routeData['Name'] ?? "Unknown Route");
-                      
+                      final routeData =
+                          routeSnap.data!.data() as Map<String, dynamic>;
+                      displayRouteName = isSpecialTrip
+                          ? (routeData['tripName'] ?? "Special Trip")
+                          : (routeData['Name'] ?? "Unknown Route");
+
                       if (isSpecialTrip) {
                         stops = routeData['waypoints'] as List<dynamic>?;
                         final destName = routeData['destinationName'];
                         final destLat = routeData['destinationLat'];
                         final destLng = routeData['destinationLng'];
-                        if (destName != null && destLat != null && destLng != null) {
+                        if (destName != null &&
+                            destLat != null &&
+                            destLng != null) {
                           stops = [
                             ...(stops ?? []),
-                            {'name': destName, 'lat': destLat, 'lng': destLng}
+                            {'name': destName, 'lat': destLat, 'lng': destLng},
                           ];
                         }
                       } else {
@@ -146,7 +152,11 @@ class DriverDashboard extends StatelessWidget {
                       }
                     }
 
-                    return buildDashboardContent(busName, displayRouteName, stops);
+                    return buildDashboardContent(
+                      busName,
+                      displayRouteName,
+                      stops,
+                    );
                   },
                 );
               },
@@ -154,7 +164,10 @@ class DriverDashboard extends StatelessWidget {
           },
         ),
       ),
-      bottomNavigationBar: CustomBottomNav(userId: userId, activeTab: NavTab.home),
+      bottomNavigationBar: CustomBottomNav(
+        userId: userId,
+        activeTab: NavTab.home,
+      ),
     );
   }
 
@@ -164,7 +177,7 @@ class DriverDashboard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _topChip("Way2College"),
+          _topLogo(),
           Row(
             children: [
               NotificationBell(userId: userId),
@@ -327,19 +340,21 @@ class DriverDashboard extends StatelessWidget {
     );
   }
 
-
-
   // ---------------- UI HELPERS ----------------
 
-  Widget _topChip(String text) {
+  Widget _topLogo() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
       ),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+      child: Image.asset(
+        'assets/images/Way2College.png',
+        height: 28,
+        fit: BoxFit.contain,
+      ),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/utils/PasswordUtils.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class PasswordResetScreen extends StatefulWidget {
   const PasswordResetScreen({super.key});
@@ -84,6 +85,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text(
           "Password Reset",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class UserDeactivationScreen extends StatefulWidget {
   const UserDeactivationScreen({super.key});
@@ -24,6 +25,7 @@ class _UserDeactivationScreenState extends State<UserDeactivationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text(
           "User Deactivation",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),

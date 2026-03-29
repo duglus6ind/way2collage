@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:bus_tracker/screens/SeatLayout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
 import 'package:bus_tracker/widgets/CustomBottomNav.dart';
 import 'package:bus_tracker/services/directions_service.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class StudentMap extends StatefulWidget {
   final String userId;
@@ -34,6 +36,8 @@ class _StudentMapState extends State<StudentMap> {
   String _duration = "";
   bool _isFetchingRoute = false;
   DateTime? _lastFetchTime;
+  List<String> _passedStops = [];
+  bool _tripActive = false;
 
   @override
   void initState() {
@@ -97,6 +101,13 @@ class _StudentMapState extends State<StudentMap> {
                     .listen((busSnap) {
                       if (busSnap.exists) {
                         final busData = busSnap.data() as Map<String, dynamic>;
+                        if (mounted) {
+                          setState(() {
+                            _passedStops = List<String>.from(busData['passedStops'] ?? []);
+                            _tripActive = busData['tripActive'] == true;
+                          });
+                        }
+
                         if (busData['latitude'] != null &&
                             busData['longitude'] != null) {
                           final newLat = (busData['latitude'] as num)
@@ -107,6 +118,35 @@ class _StudentMapState extends State<StudentMap> {
                             bool isFirst = _currentPosition == null;
                             setState(() {
                               _currentPosition = LatLng(newLat, newLng);
+
+                              if (_polylineCoordinates.isNotEmpty) {
+                                double minDistance = double.infinity;
+                                int closestIndex = 0;
+                                int checkLimit = _polylineCoordinates.length < 50 ? _polylineCoordinates.length : 50;
+
+                                for (int i = 0; i < checkLimit; i++) {
+                                  double lat1 = _currentPosition!.latitude;
+                                  double lon1 = _currentPosition!.longitude;
+                                  double lat2 = _polylineCoordinates[i].latitude;
+                                  double lon2 = _polylineCoordinates[i].longitude;
+                                  
+                                  var p = 0.017453292519943295; // Math.PI / 180
+                                  var a = 0.5 - math.cos((lat2 - lat1) * p)/2 + 
+                                          math.cos(lat1 * p) * math.cos(lat2 * p) * 
+                                          (1 - math.cos((lon2 - lon1) * p))/2;
+                                  var dist = 12742 * math.asin(math.sqrt(a));
+                                  
+                                  if (dist < minDistance) {
+                                    minDistance = dist;
+                                    closestIndex = i;
+                                  }
+                                }
+                                
+                                if (closestIndex > 0) {
+                                  _polylineCoordinates.removeRange(0, closestIndex);
+                                }
+                                _polylineCoordinates[0] = _currentPosition!;
+                              }
                             });
                             if (!isFirst) {
                               _mapController?.animateCamera(
@@ -206,6 +246,14 @@ class _StudentMapState extends State<StudentMap> {
       dynamic destination;
       Set<Marker> newMarkers = {};
 
+      int targetIndex = stops.length - 1;
+      if (_assignedStopName != null) {
+        int idx = stops.indexWhere((s) => s['name'] == _assignedStopName);
+        if (idx != -1) {
+          targetIndex = idx;
+        }
+      }
+
       for (int i = 0; i < stops.length; i++) {
         final stop = stops[i];
         LatLng? pos;
@@ -219,7 +267,6 @@ class _StudentMapState extends State<StudentMap> {
 
         final isTarget =
             _assignedStopName != null && stop['name'] == _assignedStopName;
-        final isDestination = i == stops.length - 1;
 
         if (pos != null) {
           newMarkers.add(
@@ -241,14 +288,30 @@ class _StudentMapState extends State<StudentMap> {
           );
         }
 
-        if (isDestination) {
+        // We only want the polyline up to the target stop.
+        if (i == targetIndex) {
           destination = pos ?? stop['name'].toString();
-        } else {
-          waypoints.add(pos ?? stop['name'].toString());
+        } else if (i < targetIndex) {
+          // If the bus hasn't passed this intermediate stop, add it as a waypoint
+          if (!_passedStops.contains(stop['name'])) {
+            waypoints.add(pos ?? stop['name'].toString());
+          }
         }
       }
 
       if (mounted) setState(() => _stopMarkers = newMarkers);
+
+      // If trip is not active or bus has already passed the target stop, we don't draw polyline/ETA
+      if (!_tripActive || (_assignedStopName != null && _passedStops.contains(_assignedStopName))) {
+        if (mounted) {
+          setState(() {
+            _polylineCoordinates.clear();
+            _distance = "";
+            _duration = "";
+          });
+        }
+        return;
+      }
 
       while (_currentPosition == null) {
         await Future.delayed(const Duration(seconds: 1));
@@ -265,7 +328,7 @@ class _StudentMapState extends State<StudentMap> {
         setState(() {
           _distance = dirData['distance'];
           _duration = dirData['duration'];
-          _polylineCoordinates = dirData['polylineCoordinates'];
+          _polylineCoordinates = List<LatLng>.from(dirData['polylineCoordinates']);
           _lastFetchTime = DateTime.now();
         });
       }
@@ -341,12 +404,9 @@ class _StudentMapState extends State<StudentMap> {
 
             // TOP BAR
             Positioned(
-              top: 16,
-              left: 16,
-              child: _iconButton(
-                icon: Icons.arrow_back,
-                onTap: () => Navigator.pop(context),
-              ),
+              top: 8,
+              left: 8,
+              child: const CustomBackButton(),
             ),
 
             // BUS STATUS CARD
@@ -465,16 +525,20 @@ class _StudentMapState extends State<StudentMap> {
             final delayMinutes = busData['delayMinutes'];
             final delayReason = busData['delayReason'];
 
-            final Timestamp? ts = busData['statusUpdatedAt'];
-            final DateTime? lastUpdated = ts?.toDate();
+            final timestamp = busData['statusUpdatedAt'];
+            final DateTime? lastUpdated = timestamp != null && timestamp is Timestamp
+                ? timestamp.toDate()
+                : null;
             final String footerText = lastUpdated != null
                 ? "Last updated: ${_formatTime(lastUpdated)}"
                 : "";
+            
+            final tripActive = busData['tripActive'] == true;
 
             // ETA Logic
             String? etaInfo;
             String? etaUpdatedTime;
-            if (_distance.isNotEmpty && _duration.isNotEmpty) {
+            if (tripActive && _distance.isNotEmpty && _duration.isNotEmpty) {
               etaInfo = "Arriving in $_duration ($_distance)";
               if (_lastFetchTime != null) {
                 etaUpdatedTime = "ETA updated: ${_formatTime(_lastFetchTime!)}";
@@ -694,19 +758,4 @@ class _StudentMapState extends State<StudentMap> {
     );
   }
 
-  Widget _iconButton({required IconData icon, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-        ),
-        child: Icon(icon, color: Colors.black),
-      ),
-    );
-  }
 }

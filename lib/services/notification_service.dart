@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/material.dart';
 import 'package:bus_tracker/main.dart'; // To access flutterLocalNotificationsPlugin & navigatorKey
 
 class NotificationService {
@@ -52,36 +51,6 @@ class NotificationService {
               final payload = data['payload'];
 
               _showLocalNotification(title, message, payload);
-
-              // Show an in-app pop up notification
-              final context = navigatorKey.currentContext;
-              if (context != null) {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    title: Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    content: Text(message),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                          'OK',
-                          style: TextStyle(
-                            color: Color(0xFF095C42),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
             }
           }
         });

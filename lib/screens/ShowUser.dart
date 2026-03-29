@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/screens/UserDetailScreen.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class ShowUsersScreen extends StatefulWidget {
   const ShowUsersScreen({super.key});
@@ -25,6 +26,7 @@ class _ShowUsersScreenState extends State<ShowUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text("All Users", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF095C42),
       ),

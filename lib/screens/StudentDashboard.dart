@@ -26,7 +26,7 @@ class StudentDashboard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _topChip("Way2College"),
+                  _topLogo(),
                   Row(
                     children: [
                       NotificationBell(userId: userId),
@@ -403,7 +403,10 @@ class StudentDashboard extends StatelessWidget {
       ),
 
       // BOTTOM NAVIGATION
-      bottomNavigationBar: CustomBottomNav(userId: userId, activeTab: NavTab.home),
+      bottomNavigationBar: CustomBottomNav(
+        userId: userId,
+        activeTab: NavTab.home,
+      ),
     );
   }
 
@@ -446,15 +449,19 @@ class StudentDashboard extends StatelessWidget {
 
   // ---------------- UI HELPERS ----------------
 
-  Widget _topChip(String text) {
+  Widget _topLogo() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
       ),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+      child: Image.asset(
+        'assets/images/Way2College.png',
+        height: 28,
+        fit: BoxFit.contain,
+      ),
     );
   }
 

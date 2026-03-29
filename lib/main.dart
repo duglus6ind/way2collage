@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'firebase_options.dart';
@@ -78,6 +79,32 @@ class _MyAppState extends State<MyApp> {
         }
       },
     );
+
+    // 🔹 Explicitly create notification channel (Android 8+)
+    final androidPlugin =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'bus_channel',
+          'Bus Notifications',
+          description: 'Bus app notifications',
+          importance: Importance.max,
+        ),
+      );
+    }
+
+    // 🔹 Update Token if already logged in
+    final prefs = await SharedPreferences.getInstance();
+    final savedUserId = prefs.getString('userId');
+    if (savedUserId != null && token != null) {
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(savedUserId)
+          .update({'fcmToken': token});
+      print("Token updated for existing user: $savedUserId");
+    }
 
     /// 🔹 Foreground listener (SHOW POPUP)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {

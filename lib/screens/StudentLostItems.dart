@@ -1,4 +1,5 @@
 import 'package:bus_tracker/screens/StudentReportStatus.dart';
+import 'package:bus_tracker/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -40,6 +41,35 @@ class _StudentLostItemsPageState extends State<StudentLostItemsPage> {
 
     debugPrint("Student Lost Report ID: ${doc.id}");
 
+    // --- NOTIFY THE BUS ATTENDANT ---
+    try {
+      final studentDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.userId)
+          .get();
+      final busId = studentDoc.data()?['AssignedBusId'];
+
+      if (busId != null) {
+        final attendantSnap = await FirebaseFirestore.instance
+            .collection('Users')
+            .where('Role', isEqualTo: 'Bus Attendant')
+            .where('AssignedBusId', isEqualTo: busId)
+            .get();
+
+        for (var attDoc in attendantSnap.docs) {
+          await NotificationService.sendNotification(
+            toUserId: attDoc.id,
+            title: 'New Student Lost Report',
+            message: 'A student reported a lost item: "${_itemNameController.text.trim()}"',
+            busId: busId,
+            busName: 'Bus $busId',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error sending notification to attendant: $e");
+    }
+
     _itemNameController.clear();
     _descriptionController.clear();
 
@@ -65,8 +95,6 @@ class _StudentLostItemsPageState extends State<StudentLostItemsPage> {
               child: Row(
                 children: [
                   _iconButton(Icons.arrow_back, () => Navigator.pop(context)),
-                  const Spacer(),
-                  _iconButton(Icons.menu, () {}),
                 ],
               ),
             ),

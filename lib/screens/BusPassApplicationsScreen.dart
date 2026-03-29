@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class BusPassApplicationsScreen extends StatefulWidget {
   const BusPassApplicationsScreen({super.key});
@@ -22,7 +23,7 @@ class _BusPassApplicationsScreenState extends State<BusPassApplicationsScreen> {
           "Bus Pass Applications",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        leading: const CustomBackButton(),
         elevation: 0,
       ),
       body: Column(
@@ -290,15 +291,27 @@ class _BusPassApplicationsScreenState extends State<BusPassApplicationsScreen> {
           .collection('bus_pass_applications')
           .doc(docId)
           .update({'status': newStatus});
-
       if (userId.isNotEmpty) {
         await FirebaseFirestore.instance.collection('Notifications').add({
           'toUserId': userId,
-          'title': 'Bus Pass Application ${newStatus == 'APPROVED' ? 'Approved' : 'Rejected'}',
-          'message': 'Your bus pass application has been ${newStatus.toLowerCase()}.',
+          'title':
+              'Bus Pass Application ${newStatus == 'APPROVED' ? 'Approved' : 'Rejected'}',
+          'message':
+              'Your bus pass application has been ${newStatus.toLowerCase()}.',
           'createdAt': FieldValue.serverTimestamp(),
           'isRead': false,
           'type': 'BUS_PASS_STATUS',
+        });
+      }
+
+      // Sync to Users collection only if status is APPROVED
+      if (newStatus == 'APPROVED' && userId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(userId)
+            .update({
+          'BusPassStatus': 'APPROVED',
+          'ActivationDate': FieldValue.serverTimestamp(),
         });
       }
     } catch (e) {

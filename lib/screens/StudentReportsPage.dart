@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/services/notification_service.dart';
 
 class StudentReportsPage extends StatelessWidget {
   const StudentReportsPage({super.key});
@@ -223,16 +224,14 @@ class StudentReportsPage extends StatelessWidget {
                             final studentId = data['reportedBy'];
                             if (studentId != null &&
                                 studentId.toString().isNotEmpty) {
-                              await FirebaseFirestore.instance
-                                  .collection('Notifications')
-                                  .add({
-                                    'title': 'Lost Item Returned 🎉',
-                                    'message':
-                                        'Your report for "${data['itemName'] ?? 'an item'}" has been marked as Closed. Kindly confirm you have received it.',
-                                    'toUserId': studentId,
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                    'isRead': false,
-                                  });
+                              await NotificationService.sendNotification(
+                                toUserId: studentId,
+                                title: 'Lost Item Returned 🎉',
+                                message:
+                                    'Your report for "${data['itemName'] ?? 'an item'}" has been marked as Closed. Kindly confirm you have received it.',
+                                busId: '', // Bus ID not critical here as it's a direct response
+                                busName: 'Lost & Found',
+                              );
                             }
                           }
                         } else {
@@ -256,6 +255,18 @@ class StudentReportsPage extends StatelessWidget {
                         'attendantReply': replyController.text.trim(),
                         'updatedAt': FieldValue.serverTimestamp(),
                       });
+
+                  // Notify the student about the reply
+                  final studentId = data['reportedBy'];
+                  if (studentId != null && studentId.toString().isNotEmpty) {
+                    await NotificationService.sendNotification(
+                      toUserId: studentId,
+                      title: 'New Reply to Lost Report',
+                      message: 'Attendant replied: "${replyController.text.trim()}"',
+                      busId: '',
+                      busName: 'Lost & Found',
+                    );
+                  }
 
                   ScaffoldMessenger.of(
                     context,

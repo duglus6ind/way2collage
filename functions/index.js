@@ -53,9 +53,68 @@ exports.sendBusStatusNotification = functions.firestore
           title: "Bus Status Update",
           body: messageBody,
         },
+        android: {
+          notification: {
+            channelId: "bus_channel",
+          },
+        },
       };
 
       await admin.messaging().sendToDevice(tokens, payload);
+
+      return null;
+    });
+
+exports.sendPushNotificationOnNewDoc = functions.firestore
+    .document("Notifications/{notificationId}")
+    .onCreate(async (snap, context) => {
+      const notificationData = snap.data();
+      const toUserId = notificationData.toUserId;
+      const title = notificationData.title || "New Notification";
+      const message = notificationData.message || "";
+
+      if (!toUserId) {
+        console.log("No toUserId found in notification.");
+        return null;
+      }
+
+      // Fetch user to get fcmToken
+      const userDoc = await admin.firestore()
+          .collection("Users")
+          .doc(toUserId)
+          .get();
+
+      if (!userDoc.exists) {
+        console.log(`User ${toUserId} does not exist.`);
+        return null;
+      }
+
+      const userData = userDoc.data();
+      const fcmToken = userData.fcmToken;
+
+      if (!fcmToken) {
+        console.log(`User ${toUserId} has no FCM token.`);
+        return null;
+      }
+
+      const payload = {
+        notification: {
+          title: title,
+          body: message,
+        },
+        android: {
+          notification: {
+            channelId: "bus_channel",
+          },
+        },
+      };
+
+      try {
+        await admin.messaging().sendToDevice(fcmToken, payload);
+        console.log(`Successfully sent push notification to ${toUserId}`);
+      } catch (error) {
+        console.error("Error sending push notification:", error);
+      }
 
       return null;
     });
