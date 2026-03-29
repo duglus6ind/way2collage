@@ -39,7 +39,7 @@ class SeatLayoutPage extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
                   child: Row(
                     children: [
-                      // 🔹 Back Button (Glass Style)
+                      //  Back Button (Glass Style)
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
@@ -62,7 +62,7 @@ class SeatLayoutPage extends StatelessWidget {
 
                       const SizedBox(width: 16),
 
-                      // 🔹 Title
+                      //  Title
                       const Expanded(
                         child: Text(
                           "Choose Your Seat",
@@ -76,33 +76,8 @@ class SeatLayoutPage extends StatelessWidget {
                         ),
                       ),
 
-                      // 🔹 Bus Details Capsule
-                      GestureDetector(
-                        onTap: () {
-                          // Navigate to bus details
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.25),
-                            ),
-                          ),
-                          child: const Text(
-                            "Bus Details",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
+                      //  Spacer to balance Back Button
+                      const SizedBox(width: 58),
                     ],
                   ),
                 ),

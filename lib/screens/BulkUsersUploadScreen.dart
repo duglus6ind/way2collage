@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:csv/csv.dart';
 import 'package:bus_tracker/utils/PasswordUtils.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class AddUsersScreen extends StatefulWidget {
   const AddUsersScreen({super.key});
@@ -36,26 +37,7 @@ class _AddUsersScreenState extends State<AddUsersScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF095C42),
         elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8),
-          child: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 4,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.arrow_back, color: Colors.black),
-            ),
-          ),
-        ),
+        leading: const CustomBackButton(),
         title: const Text(
           "Add Users",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),

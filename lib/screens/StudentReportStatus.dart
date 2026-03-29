@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/services/notification_service.dart';
 
 class StudentReportStatusPage extends StatelessWidget {
   final String studentId;
@@ -185,6 +186,38 @@ class StudentReportStatusPage extends StatelessWidget {
             'status': 'CONFIRMED',
             'updatedAt': FieldValue.serverTimestamp(),
           });
+
+      // Notify the attendant/staff about the confirmation
+      final reportDoc = await FirebaseFirestore.instance
+          .collection('student_lost_reports')
+          .doc(docId)
+          .get();
+      final reportData = reportDoc.data();
+      final itemName = reportData?['itemName'] ?? "item";
+
+      final studentDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(studentId)
+          .get();
+      final busId = studentDoc.data()?['AssignedBusId'];
+
+      if (busId != null) {
+        final attendantSnap = await FirebaseFirestore.instance
+            .collection('Users')
+            .where('Role', isEqualTo: 'Bus Attendant')
+            .where('AssignedBusId', isEqualTo: busId)
+            .get();
+
+        for (var attDoc in attendantSnap.docs) {
+          await NotificationService.sendNotification(
+            toUserId: attDoc.id,
+            title: 'Receipt Confirmed',
+            message: 'Student confirmed receipt of: "$itemName"',
+            busId: busId,
+            busName: 'Bus $busId',
+          );
+        }
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Thank you for confirming!")),
       );

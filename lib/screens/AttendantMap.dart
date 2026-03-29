@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:bus_tracker/screens/SeatLayout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +7,8 @@ import 'package:bus_tracker/services/notification_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
 import 'package:bus_tracker/services/directions_service.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class AttendantMap extends StatefulWidget {
   final String userId;
@@ -29,9 +32,12 @@ class _AttendantMapState extends State<AttendantMap> {
   String _duration = "";
   bool _isFetchingRoute = false;
   DateTime? _lastRouteFetchTime;
+  List<String> _passedStops = [];
+  bool _tripActive = false;
   Set<Marker> _markers = {};
   BitmapDescriptor? _stopIcon;
   BitmapDescriptor? _destinationIcon;
+  BitmapDescriptor? _passedStopIcon;
 
   @override
   void initState() {
@@ -45,6 +51,7 @@ class _AttendantMapState extends State<AttendantMap> {
       _busIcon = await getMarkerIconFromData(Icons.directions_bus, Colors.blue);
       _stopIcon = await getMarkerIconFromData(Icons.location_on, Colors.orange, size: 100);
       _destinationIcon = await getMarkerIconFromData(Icons.location_on, Colors.red, size: 120);
+      _passedStopIcon = await getMarkerIconFromData(Icons.location_on, Colors.grey, size: 80);
       if (mounted) setState(() {});
     } catch (e) {
       print("Error loading custom marker: $e");
@@ -75,6 +82,14 @@ class _AttendantMapState extends State<AttendantMap> {
                     .listen((busSnap) {
                       if (busSnap.exists) {
                         final busData = busSnap.data() as Map<String, dynamic>;
+                        
+                        if (mounted) {
+                          setState(() {
+                            _passedStops = List<String>.from(busData['passedStops'] ?? []);
+                            _tripActive = busData['tripActive'] == true;
+                          });
+                        }
+
                         if (busData['latitude'] != null &&
                             busData['longitude'] != null) {
                           final newLat = (busData['latitude'] as num)
@@ -85,6 +100,35 @@ class _AttendantMapState extends State<AttendantMap> {
                             bool isFirst = _currentPosition == null;
                             setState(() {
                               _currentPosition = LatLng(newLat, newLng);
+
+                              if (_polylineCoordinates.isNotEmpty) {
+                                double minDistance = double.infinity;
+                                int closestIndex = 0;
+                                int checkLimit = _polylineCoordinates.length < 50 ? _polylineCoordinates.length : 50;
+
+                                for (int i = 0; i < checkLimit; i++) {
+                                  double lat1 = _currentPosition!.latitude;
+                                  double lon1 = _currentPosition!.longitude;
+                                  double lat2 = _polylineCoordinates[i].latitude;
+                                  double lon2 = _polylineCoordinates[i].longitude;
+                                  
+                                  var p = 0.017453292519943295; // Math.PI / 180
+                                  var a = 0.5 - math.cos((lat2 - lat1) * p)/2 + 
+                                          math.cos(lat1 * p) * math.cos(lat2 * p) * 
+                                          (1 - math.cos((lon2 - lon1) * p))/2;
+                                  var dist = 12742 * math.asin(math.sqrt(a));
+                                  
+                                  if (dist < minDistance) {
+                                    minDistance = dist;
+                                    closestIndex = i;
+                                  }
+                                }
+                                
+                                if (closestIndex > 0) {
+                                  _polylineCoordinates.removeRange(0, closestIndex);
+                                }
+                                _polylineCoordinates[0] = _currentPosition!;
+                              }
                             });
                             if (!isFirst) {
                               _mapController?.animateCamera(
@@ -95,13 +139,13 @@ class _AttendantMapState extends State<AttendantMap> {
                               );
                             }
 
-                            // Periodic route update (every 30 seconds)
+                            // Periodic route update (every 15 seconds)
                             if (_busId != null &&
                                 (_lastRouteFetchTime == null ||
                                     DateTime.now()
                                             .difference(_lastRouteFetchTime!)
                                             .inSeconds >
-                                        30)) {
+                                        15)) {
                               _fetchRoutePath(_busId!);
                             }
                           }
@@ -179,28 +223,47 @@ class _AttendantMapState extends State<AttendantMap> {
         }
 
         final isDestination = i == stops.length - 1;
+        final isPassed = _passedStops.contains(stop['name']);
 
         if (pos != null) {
+          BitmapDescriptor iconToUse = _stopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+          if (isPassed) {
+            iconToUse = _passedStopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+          } else if (isDestination) {
+            iconToUse = _destinationIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+          }
+
           stopMarkers.add(
             Marker(
               markerId: MarkerId('stop_${i}_${stop['name']}'),
               position: pos,
               infoWindow: InfoWindow(title: stop['name']),
-              icon: isDestination
-                  ? (_destinationIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
-                  : (_stopIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
+              icon: iconToUse,
+              zIndex: isPassed ? 0.0 : 1.0,
             ),
           );
         }
 
         if (isDestination) {
           destination = pos ?? stop['name'].toString();
-        } else {
+        } else if (!isPassed) {
           waypoints.add(pos ?? stop['name'].toString());
         }
       }
 
       if (mounted) setState(() => _markers = stopMarkers);
+
+      // If trip is not active, we don't draw polyline/ETA
+      if (!_tripActive) {
+        if (mounted) {
+          setState(() {
+            _polylineCoordinates.clear();
+            _distance = "";
+            _duration = "";
+          });
+        }
+        return;
+      }
 
       while (_currentPosition == null) {
         await Future.delayed(const Duration(seconds: 1));
@@ -278,11 +341,12 @@ class _AttendantMapState extends State<AttendantMap> {
                   ..._markers,
                 },
                 polylines: {
-                  if (_polylineCoordinates.isNotEmpty)
+                  if (_tripActive && _polylineCoordinates.isNotEmpty)
                     Polyline(
                       polylineId: const PolylineId('route_path'),
                       color: Colors.blueAccent,
-                      width: 5,
+                      width: 10,
+                      zIndex: 0,
                       points: _polylineCoordinates,
                     ),
                 },
@@ -331,12 +395,9 @@ class _AttendantMapState extends State<AttendantMap> {
 
             // TOP BAR
             Positioned(
-              top: 16,
-              left: 16,
-              child: _iconButton(
-                icon: Icons.arrow_back,
-                onTap: () => Navigator.pop(context),
-              ),
+              top: 8,
+              left: 8,
+              child: const CustomBackButton(),
             ),
 
             // BUS STATUS UPDATE CHIP
@@ -352,9 +413,10 @@ class _AttendantMapState extends State<AttendantMap> {
               ),
             ),
 
+
             // TRACK SEATS BUTTON
             Positioned(
-              bottom: 24,
+              bottom: 100,
               right: 24,
               child: GestureDetector(
                 onTap: () => _openSeatLayout(context),
@@ -386,6 +448,14 @@ class _AttendantMapState extends State<AttendantMap> {
                   ),
                 ),
               ),
+            ),
+
+            // BOTTOM NAV
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNav(userId: widget.userId, activeTab: NavTab.map),
             ),
           ],
         ),
@@ -661,21 +731,6 @@ class _AttendantMapState extends State<AttendantMap> {
     }
   }
 
-  Widget _iconButton({required IconData icon, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-        ),
-        child: Icon(icon, color: Colors.black),
-      ),
-    );
-  }
 
   Color _getStatusColor(String status) {
     switch (status) {

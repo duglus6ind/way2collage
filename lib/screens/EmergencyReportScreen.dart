@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:bus_tracker/services/notification_service.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class EmergencyReportScreen extends StatefulWidget {
   final String userId;
@@ -138,6 +139,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text("Report Emergency"),
         backgroundColor: Colors.red.shade700,
         foregroundColor: Colors.white,

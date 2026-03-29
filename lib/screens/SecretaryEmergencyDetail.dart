@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/services/notification_service.dart';
 import 'package:intl/intl.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class SecretaryEmergencyDetail extends StatefulWidget {
   final String emergencyId;
@@ -58,6 +59,7 @@ class _SecretaryEmergencyDetailState extends State<SecretaryEmergencyDetail> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text("Emergency Details"),
         backgroundColor: const Color(0xFF095C42),
         foregroundColor: Colors.white,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/screens/SecretaryEmergencyDetail.dart';
 import 'package:intl/intl.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class SecretaryEmergencyList extends StatelessWidget {
   const SecretaryEmergencyList({super.key});
@@ -10,6 +11,7 @@ class SecretaryEmergencyList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text("Emergency Reports"),
         backgroundColor: const Color(0xFF095C42),
         foregroundColor: Colors.white,

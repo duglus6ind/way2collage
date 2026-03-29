@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 import 'package:bus_tracker/screens/SecretaryEmergencyDetail.dart';
 import 'package:bus_tracker/screens/DriverEmergencyList.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,7 +41,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Notifications")),
+      appBar: AppBar(
+        leading: const CustomBackButton(),
+        title: const Text("Notifications"),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('Notifications')

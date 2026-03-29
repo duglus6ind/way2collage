@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/screens/MapPickerScreen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:bus_tracker/screens/MapPickerScreen.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class AssignBusScreen extends StatefulWidget {
   const AssignBusScreen({super.key});
@@ -27,11 +26,7 @@ class _AssignBusScreenState extends State<AssignBusScreen> {
           elevation: 4,
           shadowColor: Colors.black26,
           centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            color: Colors.white,
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const CustomBackButton(),
           title: const Text(
             "Assign Bus & Routes",
             style: TextStyle(

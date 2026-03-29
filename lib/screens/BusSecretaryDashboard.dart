@@ -1,8 +1,7 @@
 import 'package:bus_tracker/screens/AssignBus.dart';
 import 'package:bus_tracker/screens/AssignRole.dart';
-import 'package:bus_tracker/screens/ProfilePage.dart';
-import 'package:bus_tracker/screens/SecretaryMap.dart';
 import 'package:bus_tracker/screens/SecretaryEmergencyList.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
 import 'package:bus_tracker/screens/BusPassApplicationsScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:bus_tracker/screens/UserManagement.dart';
@@ -16,274 +15,234 @@ class BusSecretaryDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFEEEAEA),
-      body: SingleChildScrollView(
-        child: SizedBox(
-          height: size.height,
-          child: Stack(
-            children: [
-              // TOP BAR ICONS
-              Positioned(
-                top: 60,
-                left: 22,
-                child: NotificationBell(userId: userId),
-              ),
-              Positioned(
-                top: 60,
-                right: 22,
-                child: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'logout') {
-                      _showLogoutDialog(context);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, color: Colors.red),
-                          SizedBox(width: 10),
-                          Text("Logout"),
-                        ],
+      backgroundColor: const Color(
+        0xFFF4F6F8,
+      ), // A slightly cooler, modern off-white background
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            // TOP BAR
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _topLogo(),
+                Row(
+                  children: [
+                    NotificationBell(userId: userId),
+                    const SizedBox(width: 12),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'logout') {
+                          _showLogoutDialog(context);
+                        }
+                      },
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  ],
-                  child: _iconBox(Icons.menu),
-                ),
-              ),
-              // ASSIGN BUS / ROLE CARD
-              // ASSIGN BUS / ROLE CARD
-              Positioned(
-                top: 134,
-                left: 24,
-                right: 24,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: _greenCard(),
-                  child: Column(
-                    children: [
-                      _whiteTile(
-                        "Assign Bus",
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AssignBusScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _whiteTile(
-                        "Staff Assignment",
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AssignStaffScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _whiteTile(
-                        "Bus Pass Applications",
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const BusPassApplicationsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // USER MANAGEMENT BUTTON
-              Positioned(
-                top: 510, // Shifted down by 95px to accommodate the new tile in the green card
-                left: 45,
-                right: 45,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const UserManagementScreen(),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    height: 60,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(17),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(4, 5),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'logout',
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout, color: Colors.redAccent),
+                              SizedBox(width: 10),
+                              Text(
+                                "Logout",
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
+                      child: _iconBox(Icons.menu),
                     ),
-                    child: const Text(
-                      "User Management",
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+                  ],
                 ),
-              ),
+              ],
+            ),
 
-              // LOWER WHITE CARD
-              Positioned(
-                top: 591, // Shifted down by 95px
-                left: 24,
-                right: 24,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: _whiteCard(),
-                  child: Column(
-                    children: [
-                      _gradientTile("Bus Pass Fee"),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SecretaryEmergencyList(),
-                            ),
-                          );
-                        },
-                        child: _gradientTile("Emergency Help"),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: SizedBox(
-        height: 100,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            // Black rounded navigation bar
+            const SizedBox(height: 35),
+
+            // ASSIGN BUS / ROLE CARD
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              height: 70,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 6,
-                    offset: Offset(0, 4),
+              padding: const EdgeInsets.all(20),
+              decoration: _greenCard(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _whiteTile(
+                    "Assign Bus",
+                    icon: Icons.directions_bus,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AssignBusScreen(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _whiteTile(
+                    "Staff Assignment",
+                    icon: Icons.badge,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AssignStaffScreen(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _whiteTile(
+                    "Bus Pass Applications",
+                    icon: Icons.credit_card,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BusPassApplicationsScreen(),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // Left button - Bus Route (white background)
-            Positioned(
-              left: 60,
-              bottom: 28,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SecretaryMap(userId: userId),
-                    ),
-                  );
-                },
-                child: _navIcon(Icons.directions_bus),
-              ),
-            ),
+            const SizedBox(height: 24),
 
-            // Right button - Profile (white background)
-            Positioned(
-              right: 55,
-              bottom: 28,
+            // USER MANAGEMENT BUTTON
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UserManagementScreen()),
+              ),
               child: Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
+                height: 75,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 3),
+                      color: Colors.blueGrey.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProfilePage(userId: userId),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        shape: BoxShape.circle,
                       ),
-                    );
-                  },
-                  child: const Icon(Icons.person, color: Colors.black),
+                      child: const Icon(
+                        Icons.manage_accounts,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        "User Management",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white54,
+                      size: 18,
+                    ),
+                  ],
                 ),
               ),
             ),
 
-            // Center Home button (black + white border)
-            Positioned(
-              bottom: 22,
+            const SizedBox(height: 24),
+
+            // EMERGENCY HELP CARD
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SecretaryEmergencyList(),
+                ),
+              ),
               child: Container(
-                padding: const EdgeInsets.all(6), // white border thickness
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black38,
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
+                height: 75,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: _whiteCard(),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        "Emergency Help",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.black26,
+                      size: 18,
                     ),
                   ],
                 ),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.home),
-                    color: Colors.white,
-                    iconSize: 32,
-                    onPressed: () {
-                      // Already on Home
-                    },
-                  ),
-                ),
               ),
             ),
+
+            const SizedBox(height: 40),
           ],
         ),
+      ),
+      bottomNavigationBar: CustomBottomNav(
+        userId: userId,
+        activeTab: NavTab.home,
+      ),
+    );
+  }
+
+  // TOP LOGO
+  Widget _topLogo() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(1, 4)),
+        ],
+      ),
+      child: Image.asset(
+        'assets/images/Way2College.png',
+        height: 28,
+        fit: BoxFit.contain,
       ),
     );
   }
@@ -327,49 +286,57 @@ class BusSecretaryDashboard extends StatelessWidget {
   }
 
   // WHITE TILE
-  Widget _whiteTile(String text, {VoidCallback? onTap}) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(21),
-      onTap: onTap,
-      child: Container(
-        height: 79,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(21),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 23,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
+  Widget _whiteTile(
+    String text, {
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ),
-      ),
-    );
-  }
-
-  // GRADIENT TILE
-  Widget _gradientTile(String text) {
-    return Container(
-      height: 79,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(21),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFAAA7D4), Color.fromRGBO(1, 1, 5, 0.5)],
-        ),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 4)),
-        ],
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 23,
-          fontWeight: FontWeight.w600,
-          color: Colors.black,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF095C42).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: const Color(0xFF095C42), size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.black26,
+                size: 16,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -408,18 +375,6 @@ class BusSecretaryDashboard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _navIcon(IconData icon) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-      ),
-      child: Icon(icon, color: Colors.black),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:bus_tracker/screens/EmergencyReportScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class DriverEmergencyList extends StatefulWidget {
   const DriverEmergencyList({super.key});
@@ -35,6 +36,7 @@ class _DriverEmergencyListState extends State<DriverEmergencyList> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text("My Reported Emergencies"),
         backgroundColor: const Color(0xFF095C42),
         foregroundColor: Colors.white,

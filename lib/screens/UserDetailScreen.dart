@@ -1,6 +1,7 @@
 import 'package:bus_tracker/utils/PasswordUtils.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class UserDetailScreen extends StatefulWidget {
   final DocumentSnapshot userDoc;
@@ -138,8 +139,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     await FirebaseFirestore.instance.collection('Users').doc(docId).delete();
 
     // Go back to Show Users screen
-    Navigator.pop(context);
-    Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
 
     ScaffoldMessenger.of(
       context,
@@ -226,6 +228,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text(
           "User Details",
           style: TextStyle(color: Colors.white),

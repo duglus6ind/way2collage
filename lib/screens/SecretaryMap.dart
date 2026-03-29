@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:bus_tracker/utils/marker_helper.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class SecretaryMap extends StatefulWidget {
   final String userId;
@@ -141,12 +143,9 @@ class _SecretaryMapState extends State<SecretaryMap> {
 
             // TOP BAR
             Positioned(
-              top: 16,
-              left: 16,
-              child: _iconButton(
-                icon: Icons.arrow_back,
-                onTap: () => Navigator.pop(context),
-              ),
+              top: 8,
+              left: 8,
+              child: const CustomBackButton(),
             ),
 
             // BUS CARDS OVERLAY (Using Opacity to show map behind it)
@@ -154,8 +153,16 @@ class _SecretaryMapState extends State<SecretaryMap> {
               top: 90,
               left: 16,
               right: 16,
-              bottom: 16,
+              bottom: 100,
               child: _allBusCards(),
+            ),
+
+            // BOTTOM NAV
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNav(userId: widget.userId, activeTab: NavTab.map),
             ),
           ],
         ),
@@ -369,19 +376,4 @@ class _SecretaryMapState extends State<SecretaryMap> {
     }
   }
 
-  Widget _iconButton({required IconData icon, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-        ),
-        child: Icon(icon, color: Colors.black),
-      ),
-    );
-  }
 }

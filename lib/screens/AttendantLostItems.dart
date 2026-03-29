@@ -5,6 +5,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bus_tracker/services/notification_service.dart';
 
 class AttendantLostItems extends StatefulWidget {
   const AttendantLostItems({super.key});
@@ -89,6 +91,34 @@ class _AttendantLostItemsState extends State<AttendantLostItems> {
         'status': 'FOUND',
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // --- SEND PUSH NOTIFICATION TO ALL STUDENTS IN THE BUS ---
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      
+      if (userId != null) {
+        final attendantDoc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
+        final busId = attendantDoc.data()?['AssignedBusId'];
+        
+        if (busId != null) {
+          final busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+          final busName = busDoc.data()?['busName'] ?? 'Your Bus';
+
+          final studentsSnap = await FirebaseFirestore.instance.collection('Users')
+              .where('Role', isEqualTo: 'Student')
+              .where('AssignedBusId', isEqualTo: busId).get();
+              
+          for (var doc in studentsSnap.docs) {
+             await NotificationService.sendNotification(
+                toUserId: doc.id,
+                title: 'Lost Item Found!',
+                message: 'A new lost item ("${_itemNameController.text.trim()}") was reported on $busName by the attendant.',
+                busId: busId,
+                busName: busName.toString(),
+             );
+          }
+        }
+      }
 
       _itemNameController.clear();
       _descriptionController.clear();

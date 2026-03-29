@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:bus_tracker/widgets/CustomBottomNav.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
+import 'dart:convert';
 
 class ProfilePage extends StatelessWidget {
   final String userId;
@@ -15,14 +18,11 @@ class ProfilePage extends StatelessWidget {
           children: [
             // TOP BAR (CLEANED)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _iconBox(
-                    Icons.arrow_back,
-                    onTap: () => Navigator.pop(context),
-                  ),
+                  const CustomBackButton(),
                   const Text(
                     "My Profile",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
@@ -85,6 +85,7 @@ class ProfilePage extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: CustomBottomNav(userId: userId, activeTab: NavTab.profile),
     );
   }
 
@@ -109,7 +110,41 @@ class ProfilePage extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(Icons.person, size: 42, color: Colors.black),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: (role == 'Student')
+                  ? StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('bus_pass_applications')
+                          .where('userId', isEqualTo: userId)
+                          .where('status', isEqualTo: 'APPROVED')
+                          .limit(1)
+                          .snapshots(),
+                      builder: (context, passSnapshot) {
+                        if (passSnapshot.hasData && passSnapshot.data!.docs.isNotEmpty) {
+                          final passData = passSnapshot.data!.docs.first.data() as Map<String, dynamic>;
+                          final String? imageUrl = passData['imageUrl'];
+                          if (imageUrl != null && imageUrl.contains(',')) {
+                            try {
+                              final String base64String = imageUrl.split(',').last;
+                              return Image.memory(
+                                base64Decode(base64String),
+                                fit: BoxFit.cover,
+                                width: 78,
+                                height: 78,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(Icons.person, size: 42, color: Colors.black),
+                              );
+                            } catch (e) {
+                              // Fallback on error
+                            }
+                          }
+                        }
+                        return const Icon(Icons.person, size: 42, color: Colors.black);
+                      },
+                    )
+                  : const Icon(Icons.person, size: 42, color: Colors.black),
+            ),
           ),
           const SizedBox(width: 18),
           Expanded(
@@ -250,25 +285,4 @@ class ProfilePage extends StatelessWidget {
 
   // ================= SMALL HELPERS =================
 
-  Widget _iconBox(IconData icon, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        width: 38,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(1, 4),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: Colors.black),
-      ),
-    );
-  }
 }

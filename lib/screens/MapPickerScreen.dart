@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:bus_tracker/widgets/CustomBackButton.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final LatLng? initialPosition;
@@ -79,6 +80,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomBackButton(),
         title: const Text("Select Stop Location"),
         backgroundColor: const Color(0xFF095C42),
         foregroundColor: Colors.white,
